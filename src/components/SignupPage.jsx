@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Eye, EyeOff, Mail } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -15,20 +15,26 @@ import {
 
 import Logo from "./Logo";
 import HeroPanel from "./HeroPanel";
+import PhoneInput from "./PhoneInput";
 import GoogleIcon from "./icons/GoogleIcon";
 import AppleIcon from "./icons/AppleIcon";
+import { registerUser, ApiError } from "@/lib/api";
+import { countries } from "@/lib/countryCodes";
 
 const initialForm = {
     firstName: "",
     middleName: "",
     lastName: "",
     suffix: "",
+    country: "PH",
+    phoneNumber: "",
     email: "",
     username: "",
     password: "",
 };
 
 function useSignupForm() {
+    const navigate = useNavigate();
     const [form, setForm] = useState(initialForm);
     const [showPassword, setShowPassword] = useState(false);
     const [agreeTerms, setAgreeTerms] = useState(false);
@@ -39,12 +45,19 @@ function useSignupForm() {
         const { name, value } = e.target;
         setForm((prev) => ({ ...prev, [name]: value }));
         if (errors[name]) setErrors((prev) => ({ ...prev, [name]: undefined }));
+        if (errors.apiError) setErrors((prev) => ({ ...prev, apiError: undefined }));
     }
 
     function validate() {
         const next = {};
         if (!form.firstName.trim()) next.firstName = "Required.";
         if (!form.lastName.trim()) next.lastName = "Required.";
+
+        if (!form.phoneNumber.trim()) {
+            next.phoneNumber = "Required.";
+        } else if (!/^[0-9+\-\s]{7,}$/.test(form.phoneNumber.trim())) {
+            next.phoneNumber = "Enter a valid phone number.";
+        }
 
         if (!form.email.trim()) {
             next.email = "Email is required.";
@@ -71,6 +84,20 @@ function useSignupForm() {
         return next;
     }
 
+    // Maps our camelCase API field-error keys back from the backend's
+    // snake_case field names, in case it returns per-field validation errors.
+    // NOTE: shape assumed as { field_name: "message" | ["message"] } — confirm
+    // against a real error response and adjust if it differs.
+    const apiFieldToFormField = {
+        first_name: "firstName",
+        middle_name: "middleName",
+        last_name: "lastName",
+        phone_number: "phoneNumber",
+        email: "email",
+        username: "username",
+        password: "password",
+    };
+
     async function handleSubmit(e) {
         e.preventDefault();
         const validationErrors = validate();
@@ -79,9 +106,37 @@ function useSignupForm() {
 
         setSubmitting(true);
         try {
-            // TODO: wire up to your real signup endpoint
-            await new Promise((resolve) => setTimeout(resolve, 900));
-            console.log("Signing up with", form);
+            const callingCode =
+                countries.find((c) => c.iso2 === form.country)?.callingCode || "";
+            const localNumber = form.phoneNumber.trim().replace(/^0+/, "");
+
+            await registerUser({
+                first_name: form.firstName.trim(),
+                middle_name: form.middleName.trim(),
+                last_name: form.lastName.trim(),
+                email: form.email.trim(),
+                phone_number: `${callingCode}${localNumber}`,
+                username: form.username.trim(),
+                password: form.password,
+            });
+            navigate("/login", { state: { justRegistered: true } });
+        } catch (err) {
+            if (err instanceof ApiError && err.fieldErrors) {
+                const mapped = {};
+                for (const [key, message] of Object.entries(err.fieldErrors)) {
+                    const formKey = apiFieldToFormField[key] || key;
+                    mapped[formKey] = Array.isArray(message) ? message[0] : message;
+                }
+                setErrors((prev) => ({ ...prev, ...mapped }));
+            } else {
+                setErrors((prev) => ({
+                    ...prev,
+                    apiError:
+                        err instanceof ApiError
+                            ? err.message
+                            : "Couldn't reach the server. Please check your connection and try again.",
+                }));
+            }
         } finally {
             setSubmitting(false);
         }
@@ -125,6 +180,15 @@ function SignupFormFields({ state }) {
     return (
         <>
             <form className="space-y-4" onSubmit={handleSubmit} noValidate>
+                {errors.apiError && (
+                    <div
+                        role="alert"
+                        className="rounded-md border border-destructive/30 bg-destructive/10 px-3.5 py-2.5 text-sm text-destructive"
+                    >
+                        {errors.apiError}
+                    </div>
+                )}
+
                 {/* First / Middle Name */}
                 <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
@@ -181,6 +245,24 @@ function SignupFormFields({ state }) {
                             className="text-base md:text-sm"
                         />
                     </div>
+                </div>
+
+                {/* Phone Number — full width, needs the room for the flag/search picker */}
+                <div className="space-y-1.5">
+                    <Label htmlFor="phoneNumber">Phone Number</Label>
+                    <PhoneInput
+                        id="phoneNumber"
+                        name="phoneNumber"
+                        countryIso2={form.country}
+                        onCountryChange={(iso2) =>
+                            handleChange({ target: { name: "country", value: iso2 } })
+                        }
+                        value={form.phoneNumber}
+                        onChange={handleChange}
+                        ariaInvalid={Boolean(errors.phoneNumber)}
+                        ariaDescribedBy={errors.phoneNumber ? "phoneNumber-error" : undefined}
+                    />
+                    <FieldError id="phoneNumber-error" message={errors.phoneNumber} />
                 </div>
 
                 {/* Email */}
@@ -350,7 +432,6 @@ export default function SignupPage() {
                         </>
                     }
                     subtitle="Create your free account and manage every loan, repayment, and application in one dashboard."
-                    showStatCard={false}
                 />
 
                 <div className="flex w-full items-center justify-center overflow-y-auto px-10 py-10 md:w-1/2 lg:w-2/5">
