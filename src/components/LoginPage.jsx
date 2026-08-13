@@ -1,6 +1,6 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
-import { Eye, EyeOff, Mail, Lock } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
+import { Eye, EyeOff, User, Lock } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,33 +18,60 @@ import Logo from "./Logo";
 import HeroPanel from "./HeroPanel";
 import GoogleIcon from "./icons/GoogleIcon";
 import AppleIcon from "./icons/AppleIcon";
+import { loginUser, ApiError } from "@/lib/api";
 
 // Shared form state + validation, used by both the mobile and desktop layouts
 // below so we're not maintaining the same logic in two places.
 function useLoginForm() {
-    const [form, setForm] = useState({ email: "", password: "" });
+    const navigate = useNavigate();
+    const location = useLocation();
+    const [form, setForm] = useState({ username: "", password: "" });
     const [showPassword, setShowPassword] = useState(false);
     const [rememberMe, setRememberMe] = useState(false);
     const [errors, setErrors] = useState({});
     const [submitting, setSubmitting] = useState(false);
+    const [successMessage, setSuccessMessage] = useState(
+        location.state?.successMessage || ""
+    );
+    const [successVisible, setSuccessVisible] = useState(
+        Boolean(location.state?.successMessage)
+    );
+
+    // Clear the success message from history state after reading it once, so
+    // it doesn't reappear if the user refreshes or navigates back to /login.
+    useEffect(() => {
+        if (location.state?.successMessage) {
+            navigate(location.pathname, { replace: true, state: {} });
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // Auto-dismiss: start the fade-out at 1s, then fully unmount once the
+    // transition finishes so it stops taking up layout space.
+    useEffect(() => {
+        if (!successMessage) return;
+        const startFade = setTimeout(() => setSuccessVisible(false), 1000);
+        const remove = setTimeout(() => setSuccessMessage(""), 1500);
+        return () => {
+            clearTimeout(startFade);
+            clearTimeout(remove);
+        };
+    }, [successMessage]);
 
     function handleChange(e) {
         const { name, value } = e.target;
         setForm((prev) => ({ ...prev, [name]: value }));
         if (errors[name]) setErrors((prev) => ({ ...prev, [name]: undefined }));
+        if (errors.apiError) setErrors((prev) => ({ ...prev, apiError: undefined }));
     }
 
     function validate() {
         const next = {};
-        if (!form.email.trim()) {
-            next.email = "Email is required.";
-        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
-            next.email = "Enter a valid email address.";
+        if (!form.username.trim()) {
+            next.username = "Username is required.";
         }
         if (!form.password) {
             next.password = "Password is required.";
-        } else if (form.password.length < 6) {
-            next.password = "Password must be at least 6 characters.";
         }
         return next;
     }
@@ -57,9 +84,19 @@ function useLoginForm() {
 
         setSubmitting(true);
         try {
-            // TODO: wire up to your real authentication endpoint
-            await new Promise((resolve) => setTimeout(resolve, 900));
-            console.log("Logging in with", form, "Remember me:", rememberMe);
+            await loginUser({
+                username: form.username.trim(),
+                password: form.password,
+            });
+            navigate("/dashboard");
+        } catch (err) {
+            setErrors((prev) => ({
+                ...prev,
+                apiError:
+                    err instanceof ApiError
+                        ? err.message
+                        : "Couldn't reach the server. Please check your connection and try again.",
+            }));
         } finally {
             setSubmitting(false);
         }
@@ -73,6 +110,8 @@ function useLoginForm() {
         rememberMe,
         setRememberMe,
         submitting,
+        successMessage,
+        successVisible,
         handleChange,
         handleSubmit,
     };
@@ -87,6 +126,8 @@ function LoginFormFields({ state }) {
         rememberMe,
         setRememberMe,
         submitting,
+        successMessage,
+        successVisible,
         handleChange,
         handleSubmit,
     } = state;
@@ -94,28 +135,47 @@ function LoginFormFields({ state }) {
     return (
         <>
             <form className="space-y-5" onSubmit={handleSubmit} noValidate>
-                {/* Email */}
+                {successMessage && (
+                    <div
+                        role="status"
+                        className={`overflow-hidden rounded-md border border-accent/30 bg-accent/10 text-sm text-foreground transition-all duration-500 ease-out ${
+                            successVisible
+                                ? "max-h-24 px-3.5 py-2.5 opacity-100"
+                                : "max-h-0 px-3.5 py-0 opacity-0"
+                        }`}
+                    >
+                        {successMessage}
+                    </div>
+                )}
+                {errors.apiError && (
+                    <div
+                        role="alert"
+                        className="rounded-md border border-destructive/30 bg-destructive/10 px-3.5 py-2.5 text-sm text-destructive"
+                    >
+                        {errors.apiError}
+                    </div>
+                )}
+
+                {/* Username */}
                 <div className="space-y-1.5">
-                    <Label htmlFor="email">Email</Label>
+                    <Label htmlFor="username">Username</Label>
                     <div className="relative">
-                        <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-muted-foreground" />
+                        <User className="pointer-events-none absolute left-3.5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-muted-foreground" />
                         <Input
-                            id="email"
-                            name="email"
-                            type="email"
-                            inputMode="email"
-                            autoComplete="email"
-                            placeholder="you@example.com"
-                            value={form.email}
+                            id="username"
+                            name="username"
+                            autoComplete="username"
+                            placeholder="yourusername"
+                            value={form.username}
                             onChange={handleChange}
-                            aria-invalid={Boolean(errors.email)}
-                            aria-describedby={errors.email ? "email-error" : undefined}
+                            aria-invalid={Boolean(errors.username)}
+                            aria-describedby={errors.username ? "username-error" : undefined}
                             className="pl-10 text-base md:text-sm"
                         />
                     </div>
-                    {errors.email && (
-                        <p id="email-error" className="text-xs text-destructive">
-                            {errors.email}
+                    {errors.username && (
+                        <p id="username-error" className="text-xs text-destructive">
+                            {errors.username}
                         </p>
                     )}
                 </div>
@@ -166,12 +226,12 @@ function LoginFormFields({ state }) {
                         />
                         Remember Me
                     </label>
-                    <a
-                        href="#forgot-password"
+                    <Link
+                        to="/forgot-password"
                         className="-m-2 p-2 text-sm font-medium text-accent hover:underline"
                     >
                         Forgot Password?
-                    </a>
+                    </Link>
                 </div>
 
                 {/* Submit */}
