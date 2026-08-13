@@ -15,6 +15,7 @@ import {
 
 import Logo from "./Logo";
 import HeroPanel from "./HeroPanel";
+import PageTransition from "./PageTransition";
 import OtpBoxes, { OTP_LENGTH } from "./OtpBoxes";
 import { resetPassword, ApiError } from "@/lib/api";
 
@@ -236,19 +237,21 @@ export default function ResetPasswordPage() {
             <div className="flex min-h-dvh items-center justify-center px-4 py-6 pb-[env(safe-area-inset-bottom)] sm:py-10 md:hidden">
                 <div className="flex w-full max-w-md flex-col items-center">
                     <Logo className="mb-6 mt-2 scale-90 sm:mb-10 sm:mt-6 sm:scale-100" />
-                    <Card className="w-full">
-                        <CardHeader className="p-5 pb-0 sm:p-8 sm:pb-0">
-                            <CardTitle className="text-2xl sm:text-3xl">
-                                Reset Password
-                            </CardTitle>
-                            <CardDescription>
-                                Enter the code we sent you and choose a new password.
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent className="p-5 pt-6 sm:p-8 sm:pt-6">
-                            <ResetPasswordFields state={state} />
-                        </CardContent>
-                    </Card>
+                    <PageTransition className="w-full">
+                        <Card className="w-full">
+                            <CardHeader className="p-5 pb-0 sm:p-8 sm:pb-0">
+                                <CardTitle className="text-2xl sm:text-3xl">
+                                    Reset Password
+                                </CardTitle>
+                                <CardDescription>
+                                    Enter the code we sent you and choose a new password.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="p-5 pt-6 sm:p-8 sm:pt-6">
+                                <ResetPasswordFields state={state} />
+                            </CardContent>
+                        </Card>
+                    </PageTransition>
                 </div>
             </div>
 
@@ -267,7 +270,7 @@ export default function ResetPasswordPage() {
                 />
 
                 <div className="flex w-full items-center justify-center overflow-y-auto px-10 py-10 md:w-1/2 lg:w-2/5">
-                    <div className="w-full max-w-sm">
+                    <PageTransition className="w-full max-w-sm">
                         <h1 className="text-3xl font-bold text-foreground">Reset Password</h1>
                         <p className="mt-2 text-sm text-muted-foreground">
                             Enter the code we sent you and choose a new password.
@@ -275,7 +278,7 @@ export default function ResetPasswordPage() {
                         <div className="mt-8">
                             <ResetPasswordFields state={state} />
                         </div>
-                    </div>
+                    </PageTransition>
                 </div>
             </div>
         </div>
