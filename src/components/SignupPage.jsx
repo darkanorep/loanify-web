@@ -18,7 +18,7 @@ import HeroPanel from "./HeroPanel";
 import PageTransition from "./PageTransition";
 import PhoneInput from "./PhoneInput";
 import GoogleIcon from "./icons/GoogleIcon";
-import AppleIcon from "./icons/AppleIcon";
+import AppleIcon from "./icons/Appleicon";
 import { registerUser, ApiError } from "@/lib/api";
 import { countries } from "@/lib/countryCodes";
 

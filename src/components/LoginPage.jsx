@@ -18,7 +18,7 @@ import Logo from "./Logo";
 import HeroPanel from "./HeroPanel";
 import PageTransition from "./PageTransition";
 import GoogleIcon from "./icons/GoogleIcon";
-import AppleIcon from "./icons/AppleIcon";
+import AppleIcon from "./icons/Appleicon";
 import { loginUser, ApiError } from "@/lib/api";
 
 // Shared form state + validation, used by both the mobile and desktop layouts
