@@ -1,4 +1,6 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3001";
+import { getToken } from "./authToken";
+
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 /**
  * Thrown for any non-2xx API response.
@@ -62,12 +64,18 @@ function parseErrorBody(data, status) {
 }
 
 async function request(path, options = {}) {
+    const token = getToken();
     const res = await fetch(`${API_BASE_URL}${path}`, {
-        // Sends/receives the httpOnly auth cookie. Requires your Express/NestJS
-        // CORS config to set an explicit origin (not "*") + credentials: true.
+        // Sends/receives the httpOnly session cookie for regular username/password
+        // login. Requires your CORS config to set an explicit origin + credentials: true.
         credentials: "include",
         headers: {
             "Content-Type": "application/json",
+            // Google-login users authenticate via JWT instead of the session
+            // cookie — attach it whenever one exists in storage, alongside (not
+            // instead of) the cookie above, since either login method might be
+            // in play for a given user.
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
             ...(options.headers || {}),
         },
         ...options,
@@ -102,6 +110,15 @@ export function registerUser(payload) {
 // NOTE: paths below assumed from the /api/auth/register pattern you
 // confirmed earlier — verify these against your actual auth.routes.js
 // and correct if they differ.
+
+// Checks whether the current stored token is still valid (checks both JWT
+// signature/expiry AND the Redis allowlist on the backend). Returns the
+// user object if valid, throws ApiError if not.
+export function verifySession() {
+    return request("/api/auth/me", {
+        method: "GET",
+    });
+}
 
 export function loginUser(payload) {
     return request("/api/auth/login", {

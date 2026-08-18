@@ -18,8 +18,8 @@ import Logo from "./Logo";
 import HeroPanel from "./HeroPanel";
 import PageTransition from "./PageTransition";
 import GoogleIcon from "./icons/GoogleIcon";
-import AppleIcon from "./icons/Appleicon";
-import { loginUser, ApiError } from "@/lib/api";
+import AppleIcon from "./icons/AppleIcon";
+import { loginUser, ApiError, API_BASE_URL } from "@/lib/api";
 
 // Shared form state + validation, used by both the mobile and desktop layouts
 // below so we're not maintaining the same logic in two places.
@@ -255,10 +255,21 @@ function LoginFormFields({ state }) {
 
             {/* Social logins */}
             <div className="grid grid-cols-2 gap-3">
-                <Button type="button" variant="default" className="gap-2">
+                <Button
+                    type="button"
+                    variant="default"
+                    className="gap-2"
+                    onClick={() => {
+                        console.log("Google button clicked"); // temporary debug line
+                        // Full-page redirect, not a fetch — OAuth requires the browser
+                        // to actually navigate to Google's consent screen.
+                        window.location.href = `${API_BASE_URL}/api/auth/google`;
+                    }}
+                >
                     <GoogleIcon className="h-5 w-5" />
                     Google
                 </Button>
+                {/* Apple: no backend route confirmed yet — stays inert until that exists */}
                 <Button type="button" variant="default" className="gap-2">
                     <AppleIcon className="h-4 w-4" />
                     Apple

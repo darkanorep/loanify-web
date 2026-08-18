@@ -18,8 +18,8 @@ import HeroPanel from "./HeroPanel";
 import PageTransition from "./PageTransition";
 import PhoneInput from "./PhoneInput";
 import GoogleIcon from "./icons/GoogleIcon";
-import AppleIcon from "./icons/Appleicon";
-import { registerUser, ApiError } from "@/lib/api";
+import AppleIcon from "./icons/AppleIcon";
+import { registerUser, ApiError, API_BASE_URL } from "@/lib/api";
 import { countries } from "@/lib/countryCodes";
 
 const initialForm = {
@@ -380,10 +380,18 @@ function SignupFormFields({ state }) {
 
             {/* Social signup */}
             <div className="grid grid-cols-2 gap-3">
-                <Button type="button" variant="default" className="gap-2">
+                <Button
+                    type="button"
+                    variant="default"
+                    className="gap-2"
+                    onClick={() => {
+                        window.location.href = `${API_BASE_URL}/api/auth/google`;
+                    }}
+                >
                     <GoogleIcon className="h-5 w-5" />
                     Google
                 </Button>
+                {/* Apple: no backend route confirmed yet — stays inert until that exists */}
                 <Button type="button" variant="default" className="gap-2">
                     <AppleIcon className="h-4 w-4" />
                     Apple
