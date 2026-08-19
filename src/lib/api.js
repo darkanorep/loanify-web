@@ -120,6 +120,12 @@ export function verifySession() {
     });
 }
 
+export function getDashboardSummary() {
+    return request("/api/dashboard/summary", {
+        method: "GET",
+    });
+}
+
 export function loginUser(payload) {
     return request("/api/auth/login", {
         method: "POST",
