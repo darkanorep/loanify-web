@@ -1,17 +1,17 @@
 import { Routes, Route, Navigate } from "react-router-dom";
-import LoginPage from "./components/LoginPage";
-import SignupPage from "./components/SignupPage";
-import OtpVerifyPage from "./components/OtpVerifyPage";
-import OAuthCallbackPage from "./components/OAuthCallbackPage";
-import ForgotPasswordPage from "./components/ForgotPasswordPage";
-import ResetPasswordPage from "./components/ResetPasswordPage";
-import DashboardLayout from "./components/DashboardLayout";
-import RequireAuth from "./components/RequireAuth";
-import DashboardPage from "./components/DashboardPage";
-import MyLoansPage from "./components/MyLoansPage";
-import PaymentsPage from "./components/PaymentsPage";
-import ProfilePage from "./components/ProfilePage";
-import SupportPage from "./components/SupportPage";
+import LoginPage from "./pages/auth/LoginPage.jsx";
+import SignupPage from "./pages/auth/SignupPage.jsx";
+import OtpVerifyPage from "./pages/otp/OtpVerifyPage.jsx";
+import OAuthCallbackPage from "./pages/auth/OAuthCallbackPage.jsx";
+import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage.jsx";
+import ResetPasswordPage from "./pages/auth/ResetPasswordPage.jsx";
+import DashboardLayout from "./components/layout/DashboardLayout.jsx";
+import RequireAuth from "./pages/auth/RequireAuth.jsx";
+import DashboardPage from "./pages/dashboard/DashboardPage.jsx";
+import MyLoansPage from "./pages/loans/MyLoansPage.jsx";
+import PaymentsPage from "./pages/payments/PaymentsPage.jsx";
+import ProfilePage from "./pages/profile/ProfilePage.jsx";
+import SupportPage from "./pages/support/SupportPage.jsx";
 
 export default function App() {
     return (

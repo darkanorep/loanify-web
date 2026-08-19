@@ -1,19 +1,19 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate, Link } from "react-router-dom";
 
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui/button.jsx";
 import {
     Card,
     CardHeader,
     CardTitle,
     CardContent,
-} from "@/components/ui/card";
+} from "@/components/ui/card.jsx";
 
-import Logo from "./Logo";
-import HeroPanel from "./HeroPanel";
-import PageTransition from "./PageTransition";
-import OtpBoxes, { OTP_LENGTH } from "./OtpBoxes";
-import { verifyOtp, resendOtp, ApiError } from "@/lib/api";
+import Logo from "../../components/ui/Logo.jsx";
+import HeroPanel from "../../components/ui/HeroPanel.jsx";
+import PageTransition from "../../components/ui/PageTransition.jsx";
+import OtpBoxes, { OTP_LENGTH } from "./OtpBoxes.jsx";
+import { verifyOtp, resendOtp, ApiError } from "@/lib/api.js";
 
 const RESEND_COOLDOWN_SECONDS = 60;
 

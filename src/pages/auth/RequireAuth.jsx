@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 
-import { getToken, clearToken } from "@/lib/authToken";
-import { verifySession } from "@/lib/api";
+import { getToken, clearToken } from "@/lib/authToken.js";
+import { verifySession } from "@/lib/api.js";
 
 export default function RequireAuth({ children }) {
     const location = useLocation();

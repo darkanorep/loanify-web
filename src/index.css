@@ -130,6 +130,15 @@
     @apply font-sans;
   }
 
+  .animate-page-enter {
+    animation: page-enter 400ms ease-out both;
+  }
+
+  input::-ms-reveal,
+  input::-ms-clear {
+    display: none;
+  }
+
   @keyframes page-enter {
     from {
       opacity: 0;
@@ -139,9 +148,5 @@
       opacity: 1;
       transform: translateY(0);
     }
-  }
-
-  .animate-page-enter {
-    animation: page-enter 400ms ease-out both;
   }
 }

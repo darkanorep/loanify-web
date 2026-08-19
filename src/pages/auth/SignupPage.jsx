@@ -2,25 +2,25 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Eye, EyeOff, Mail } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button.jsx";
+import { Input } from "@/components/ui/input.jsx";
+import { Label } from "@/components/ui/label.jsx";
+import { Checkbox } from "@/components/ui/checkbox.jsx";
 import {
     Card,
     CardHeader,
     CardTitle,
     CardContent,
-} from "@/components/ui/card";
+} from "@/components/ui/card.jsx";
 
-import Logo from "./Logo";
-import HeroPanel from "./HeroPanel";
-import PageTransition from "./PageTransition";
-import PhoneInput from "./PhoneInput";
-import GoogleIcon from "./icons/GoogleIcon";
-import AppleIcon from "./icons/AppleIcon";
-import { registerUser, ApiError, API_BASE_URL } from "@/lib/api";
-import { countries } from "@/lib/countryCodes";
+import Logo from "../../components/ui/Logo.jsx";
+import HeroPanel from "../../components/ui/HeroPanel.jsx";
+import PageTransition from "../../components/ui/PageTransition.jsx";
+import PhoneInput from "./PhoneInput.jsx";
+import GoogleIcon from "../../components/icons/GoogleIcon.jsx";
+import AppleIcon from "../../components/icons/Appleicon.jsx";
+import { registerUser, ApiError, API_BASE_URL } from "@/lib/api.js";
+import { countries } from "@/lib/countryCodes.js";
 
 const initialForm = {
     firstName: "",

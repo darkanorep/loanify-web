@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Search } from "lucide-react";
 
-import { countries } from "@/lib/countryCodes";
+import { countries } from "@/lib/countryCodes.js";
 
 function FlagIcon({ iso2, className = "h-3.5 w-5" }) {
     return (

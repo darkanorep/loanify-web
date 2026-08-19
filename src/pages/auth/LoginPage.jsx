@@ -2,24 +2,25 @@ import { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Eye, EyeOff, User, Lock } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button.jsx";
+import { Input } from "@/components/ui/input.jsx";
+import { Label } from "@/components/ui/label.jsx";
+import { Checkbox } from "@/components/ui/checkbox.jsx";
 import {
     Card,
     CardHeader,
     CardTitle,
     CardDescription,
     CardContent,
-} from "@/components/ui/card";
+} from "@/components/ui/card.jsx";
 
-import Logo from "./Logo";
-import HeroPanel from "./HeroPanel";
-import PageTransition from "./PageTransition";
-import GoogleIcon from "./icons/GoogleIcon";
-import AppleIcon from "./icons/AppleIcon";
-import { loginUser, ApiError, API_BASE_URL } from "@/lib/api";
+import Logo from "../../components/ui/Logo.jsx";
+import HeroPanel from "../../components/ui/HeroPanel.jsx";
+import PageTransition from "../../components/ui/PageTransition.jsx";
+import GoogleIcon from "../../components/icons/GoogleIcon.jsx";
+import AppleIcon from "../../components/icons/Appleicon.jsx";
+import { loginUser, ApiError, API_BASE_URL } from "@/lib/api.js";
+import { setToken } from "@/lib/authToken.js";
 
 // Shared form state + validation, used by both the mobile and desktop layouts
 // below so we're not maintaining the same logic in two places.
@@ -85,10 +86,11 @@ function useLoginForm() {
 
         setSubmitting(true);
         try {
-            await loginUser({
+            const res = await loginUser({
                 username: form.username.trim(),
                 password: form.password,
             });
+            setToken(res.token);
             navigate("/dashboard");
         } catch (err) {
             setErrors((prev) => ({
@@ -260,7 +262,6 @@ function LoginFormFields({ state }) {
                     variant="default"
                     className="gap-2"
                     onClick={() => {
-                        console.log("Google button clicked"); // temporary debug line
                         // Full-page redirect, not a fetch — OAuth requires the browser
                         // to actually navigate to Google's consent screen.
                         window.location.href = `${API_BASE_URL}/api/auth/google`;
@@ -301,7 +302,7 @@ export default function LoginPage() {
                             <CardHeader className="p-5 pb-0 sm:p-8 sm:pb-0">
                                 <CardTitle className="text-2xl sm:text-3xl">Welcome Back</CardTitle>
                                 <CardDescription>
-                                    Enter your email and password to access your account.
+                                    Enter your username and password to access your account.
                                 </CardDescription>
                             </CardHeader>
                             <CardContent className="p-5 pt-6 sm:p-8 sm:pt-6">
@@ -320,7 +321,7 @@ export default function LoginPage() {
                     <PageTransition className="w-full max-w-sm">
                         <h1 className="text-3xl font-bold text-foreground">Welcome Back</h1>
                         <p className="mt-2 text-sm text-muted-foreground">
-                            Enter your email and password to access your account.
+                            Enter your username and password to access your account.
                         </p>
                         <div className="mt-8">
                             <LoginFormFields state={state} />

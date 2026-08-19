@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
-import { setToken } from "@/lib/authToken";
-import Logo from "./Logo";
+import { setToken } from "@/lib/authToken.js";
+import Logo from "../../components/ui/Logo.jsx";
 
 export default function OAuthCallbackPage() {
     const navigate = useNavigate();

@@ -8,7 +8,7 @@ import {
     LogOut,
 } from "lucide-react";
 
-import { clearToken } from "@/lib/authToken";
+import { clearToken } from "@/lib/authToken.js";
 
 const navItems = [
     { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, end: true },

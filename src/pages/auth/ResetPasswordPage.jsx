@@ -2,22 +2,22 @@ import { useState } from "react";
 import { useLocation, useNavigate, Link } from "react-router-dom";
 import { Eye, EyeOff, Lock } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button.jsx";
+import { Input } from "@/components/ui/input.jsx";
+import { Label } from "@/components/ui/label.jsx";
 import {
     Card,
     CardHeader,
     CardTitle,
     CardDescription,
     CardContent,
-} from "@/components/ui/card";
+} from "@/components/ui/card.jsx";
 
-import Logo from "./Logo";
-import HeroPanel from "./HeroPanel";
-import PageTransition from "./PageTransition";
-import OtpBoxes, { OTP_LENGTH } from "./OtpBoxes";
-import { resetPassword, ApiError } from "@/lib/api";
+import Logo from "../../components/ui/Logo.jsx";
+import HeroPanel from "../../components/ui/HeroPanel.jsx";
+import PageTransition from "../../components/ui/PageTransition.jsx";
+import OtpBoxes, { OTP_LENGTH } from "../otp/OtpBoxes.jsx";
+import { resetPassword, ApiError } from "@/lib/api.js";
 
 function useResetPasswordForm() {
     const navigate = useNavigate();
