@@ -1,6 +1,6 @@
 import { getToken } from "./authToken";
 
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 /**
  * Thrown for any non-2xx API response.
@@ -136,6 +136,38 @@ export function requestLoan(payload) {
     return request("/api/loans", {
         method: "POST",
         body: JSON.stringify(payload),
+    });
+}
+
+export function getPaymentsSummary() {
+    return request("/api/payments/summary", {
+        method: "GET",
+    });
+}
+
+export function addPaymentMethod(payload) {
+    return request("/api/payment-methods", {
+        method: "POST",
+        body: JSON.stringify(payload),
+    });
+}
+
+export function deletePaymentMethod(id) {
+    return request(`/api/payment-methods/${id}`, {
+        method: "DELETE",
+    });
+}
+
+export function setDefaultPaymentMethod(id) {
+    return request(`/api/payment-methods/${id}/default`, {
+        method: "PATCH",
+    });
+}
+
+export function toggleAutopay(enabled) {
+    return request("/api/payment-methods/autopay", {
+        method: "PATCH",
+        body: JSON.stringify({ enabled }),
     });
 }
 
