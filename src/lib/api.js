@@ -1,6 +1,6 @@
 import { getToken } from "./authToken";
 
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
 
 /**
  * Thrown for any non-2xx API response.
@@ -123,6 +123,25 @@ export function verifySession() {
 export function getDashboardSummary() {
     return request("/api/dashboard/summary", {
         method: "GET",
+    });
+}
+
+export function getMyLoans() {
+    return request("/api/loans", {
+        method: "GET",
+    });
+}
+
+export function requestLoan(payload) {
+    return request("/api/loans", {
+        method: "POST",
+        body: JSON.stringify(payload),
+    });
+}
+
+export function approveLoan(loanId) {
+    return request(`/api/loans/${loanId}/approve`, {
+        method: "POST",
     });
 }
 
