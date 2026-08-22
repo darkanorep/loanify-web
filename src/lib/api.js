@@ -1,6 +1,6 @@
 import { getToken } from "./authToken";
 
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
 
 /**
  * Thrown for any non-2xx API response.
@@ -41,7 +41,6 @@ function parseErrorBody(data, status) {
     if (Array.isArray(data.errors)) {
         const fieldErrors = {};
         for (const raw of data.errors) {
-            // Joi's default format is: "field_name" some message text
             const match = /^"([^"]+)"\s*(.*)$/.exec(raw);
             if (match) {
                 const [, field, rest] = match;
@@ -54,8 +53,6 @@ function parseErrorBody(data, status) {
         };
     }
 
-    // Fallback for a field-keyed object shape, in case a different endpoint
-    // ever returns { errors: { field_name: "message" } } instead.
     if (typeof data.errors === "object") {
         return { message: "Please fix the errors below.", fieldErrors: data.errors };
     }
@@ -66,15 +63,9 @@ function parseErrorBody(data, status) {
 async function request(path, options = {}) {
     const token = getToken();
     const res = await fetch(`${API_BASE_URL}${path}`, {
-        // Sends/receives the httpOnly session cookie for regular username/password
-        // login. Requires your CORS config to set an explicit origin + credentials: true.
         credentials: "include",
         headers: {
             "Content-Type": "application/json",
-            // Google-login users authenticate via JWT instead of the session
-            // cookie — attach it whenever one exists in storage, alongside (not
-            // instead of) the cookie above, since either login method might be
-            // in play for a given user.
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
             ...(options.headers || {}),
         },
@@ -87,8 +78,7 @@ async function request(path, options = {}) {
         try {
             data = JSON.parse(text);
         } catch {
-            // Non-JSON body (e.g. plain-text 500 page) — leave data as null,
-            // we'll fall back to a generic message below.
+            // Non-JSON body — leave data as null, fall back to a generic message.
         }
     }
 
@@ -100,80 +90,12 @@ async function request(path, options = {}) {
     return data;
 }
 
+// --- Auth ---
+
 export function registerUser(payload) {
     return request("/api/auth/register", {
         method: "POST",
         body: JSON.stringify(payload),
-    });
-}
-
-// NOTE: paths below assumed from the /api/auth/register pattern you
-// confirmed earlier — verify these against your actual auth.routes.js
-// and correct if they differ.
-
-// Checks whether the current stored token is still valid (checks both JWT
-// signature/expiry AND the Redis allowlist on the backend). Returns the
-// user object if valid, throws ApiError if not.
-export function verifySession() {
-    return request("/api/auth/me", {
-        method: "GET",
-    });
-}
-
-export function getDashboardSummary() {
-    return request("/api/dashboard/summary", {
-        method: "GET",
-    });
-}
-
-export function getMyLoans() {
-    return request("/api/loans", {
-        method: "GET",
-    });
-}
-
-export function requestLoan(payload) {
-    return request("/api/loans", {
-        method: "POST",
-        body: JSON.stringify(payload),
-    });
-}
-
-export function getPaymentsSummary() {
-    return request("/api/payments/summary", {
-        method: "GET",
-    });
-}
-
-export function addPaymentMethod(payload) {
-    return request("/api/payment-methods", {
-        method: "POST",
-        body: JSON.stringify(payload),
-    });
-}
-
-export function deletePaymentMethod(id) {
-    return request(`/api/payment-methods/${id}`, {
-        method: "DELETE",
-    });
-}
-
-export function setDefaultPaymentMethod(id) {
-    return request(`/api/payment-methods/${id}/default`, {
-        method: "PATCH",
-    });
-}
-
-export function toggleAutopay(enabled) {
-    return request("/api/payment-methods/autopay", {
-        method: "PATCH",
-        body: JSON.stringify({ enabled }),
-    });
-}
-
-export function approveLoan(loanId) {
-    return request(`/api/loans/${loanId}/approve`, {
-        method: "POST",
     });
 }
 
@@ -209,5 +131,81 @@ export function resetPassword(payload) {
     return request("/api/auth/reset-password", {
         method: "POST",
         body: JSON.stringify(payload),
+    });
+}
+
+export function verifySession() {
+    return request("/api/auth/me", {
+        method: "GET",
+    });
+}
+
+// --- Dashboard ---
+
+export function getDashboardSummary() {
+    return request("/api/dashboard/summary", {
+        method: "GET",
+    });
+}
+
+// --- Loans ---
+
+export function getMyLoans() {
+    return request("/api/loans", {
+        method: "GET",
+    });
+}
+
+export function requestLoan(payload) {
+    return request("/api/loans", {
+        method: "POST",
+        body: JSON.stringify(payload),
+    });
+}
+
+export function approveLoan(loanId) {
+    return request(`/api/loans/${loanId}/approve`, {
+        method: "POST",
+    });
+}
+
+// --- Payments & Payment Methods ---
+
+export function getPaymentsSummary() {
+    return request("/api/payments/summary", {
+        method: "GET",
+    });
+}
+
+export function makePayment(payload) {
+    return request("/api/payments/pay", {
+        method: "POST",
+        body: JSON.stringify(payload),
+    });
+}
+
+export function addPaymentMethod(payload) {
+    return request("/api/payment-methods", {
+        method: "POST",
+        body: JSON.stringify(payload),
+    });
+}
+
+export function deletePaymentMethod(id) {
+    return request(`/api/payment-methods/${id}`, {
+        method: "DELETE",
+    });
+}
+
+export function setDefaultPaymentMethod(id) {
+    return request(`/api/payment-methods/${id}/default`, {
+        method: "PATCH",
+    });
+}
+
+export function toggleAutopay(enabled) {
+    return request("/api/payment-methods/autopay", {
+        method: "PATCH",
+        body: JSON.stringify({ enabled }),
     });
 }

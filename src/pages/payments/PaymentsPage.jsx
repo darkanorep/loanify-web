@@ -10,6 +10,7 @@ import {
     ApiError,
 } from "@/lib/api";
 import AddPaymentMethodModal from "./AddPaymentMethodModal";
+import MakePaymentModal from "./MakePaymentModal";
 
 function formatCurrency(amount) {
     return new Intl.NumberFormat("en-US", {
@@ -43,6 +44,7 @@ export default function PaymentsPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [showAddModal, setShowAddModal] = useState(false);
+    const [showPayModal, setShowPayModal] = useState(false);
     const [autopayUpdating, setAutopayUpdating] = useState(false);
 
     function load() {
@@ -138,7 +140,7 @@ export default function PaymentsPage() {
                 <Button
                     type="button"
                     className="bg-accent text-accent-foreground hover:bg-accent/90"
-                    onClick={() => alert("Payment processing isn't wired up yet — placeholder for now.")}
+                    onClick={() => setShowPayModal(true)}
                 >
                     Make a Payment
                 </Button>
@@ -334,6 +336,18 @@ export default function PaymentsPage() {
                     onSuccess={() => {
                         setShowAddModal(false);
                         load();
+                    }}
+                />
+            )}
+
+            {showPayModal && (
+                <MakePaymentModal
+                    loans={data.active_loans}
+                    paymentMethods={data.payment_methods}
+                    onClose={() => setShowPayModal(false)}
+                    onSuccess={() => {
+                        setShowPayModal(false);
+                        load(); // refresh balances, next-due date, and transaction history
                     }}
                 />
             )}
