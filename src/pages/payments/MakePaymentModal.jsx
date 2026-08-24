@@ -7,7 +7,7 @@ import { makePayment, ApiError } from "@/lib/api";
 function formatCurrency(amount) {
     return new Intl.NumberFormat("en-US", {
         style: "currency",
-        currency: "USD",
+        currency: "PHP",
     }).format(amount);
 }
 
@@ -135,10 +135,10 @@ export default function MakePaymentModal({
                 {selectedLoan && (
                     <div className="mt-5 rounded-xl bg-secondary/60 p-5">
                         <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                            Payment Amount ($ USD)
+                            Payment Amount ($ PHP)
                         </p>
                         <div className="flex items-center gap-2 rounded-lg border border-input bg-background px-4 py-3">
-                            <span className="text-lg font-bold text-accent">$</span>
+                            <span className="text-lg font-bold text-accent">₱</span>
                             <input
                                 type="number"
                                 min={0}

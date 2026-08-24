@@ -15,7 +15,7 @@ import MakePaymentModal from "./MakePaymentModal";
 function formatCurrency(amount) {
     return new Intl.NumberFormat("en-US", {
         style: "currency",
-        currency: "USD",
+        currency: "PHP",
     }).format(amount);
 }
 
@@ -46,11 +46,16 @@ export default function PaymentsPage() {
     const [showAddModal, setShowAddModal] = useState(false);
     const [showPayModal, setShowPayModal] = useState(false);
     const [autopayUpdating, setAutopayUpdating] = useState(false);
+    const [historyPage, setHistoryPage] = useState(1);
+    const HISTORY_PAGE_SIZE = 10;
 
     function load() {
         setLoading(true);
         getPaymentsSummary()
-            .then((res) => setData(res))
+            .then((res) => {
+                setData(res);
+                setHistoryPage(1); // fresh data (e.g. after a new payment) — start from page 1
+            })
             .catch((err) => {
                 setError(err instanceof ApiError ? err.message : "Couldn't load your payments.");
             })
@@ -287,45 +292,82 @@ export default function PaymentsPage() {
                     {data.transactions.length === 0 ? (
                         <p className="p-6 text-center text-sm text-muted-foreground">No transactions yet.</p>
                     ) : (
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
-                                <thead>
-                                <tr className="border-b border-border bg-secondary/60 text-left text-xs text-muted-foreground">
-                                    <th className="whitespace-nowrap px-5 py-3 font-medium">Date</th>
-                                    <th className="px-5 py-3 font-medium">Description</th>
-                                    <th className="whitespace-nowrap px-5 py-3 font-medium">Method</th>
-                                    <th className="whitespace-nowrap px-5 py-3 text-right font-medium">Amount</th>
-                                    <th className="whitespace-nowrap px-5 py-3 text-right font-medium">Status</th>
-                                </tr>
-                                </thead>
-                                <tbody>
-                                {data.transactions.map((tx) => (
-                                    <tr key={tx.id} className="border-b border-border last:border-0">
-                                        <td className="whitespace-nowrap px-5 py-3 text-muted-foreground">
-                                            {formatDateShort(tx.date)}
-                                        </td>
-                                        <td className="px-5 py-3 font-medium text-foreground">{tx.description}</td>
-                                        <td className="whitespace-nowrap px-5 py-3 text-muted-foreground">
-                                            {tx.method || "—"}
-                                        </td>
-                                        <td
-                                            className={`whitespace-nowrap px-5 py-3 text-right font-medium ${
-                                                tx.amount < 0 ? "text-foreground" : "text-accent"
-                                            }`}
-                                        >
-                                            {tx.amount < 0 ? "-" : "+"}
-                                            {formatCurrency(Math.abs(tx.amount))}
-                                        </td>
-                                        <td className="whitespace-nowrap px-5 py-3 text-right">
-                        <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-foreground">
-                          {tx.status}
-                        </span>
-                                        </td>
+                        <>
+                            <div className="max-h-[420px] overflow-y-auto overflow-x-auto">
+                                <table className="w-full text-sm">
+                                    <thead className="sticky top-0 bg-secondary/95 backdrop-blur-sm">
+                                    <tr className="border-b border-border text-left text-xs text-muted-foreground">
+                                        <th className="whitespace-nowrap px-5 py-3 font-medium">Date</th>
+                                        <th className="px-5 py-3 font-medium">Description</th>
+                                        <th className="whitespace-nowrap px-5 py-3 font-medium">Method</th>
+                                        <th className="whitespace-nowrap px-5 py-3 text-right font-medium">Amount</th>
+                                        <th className="whitespace-nowrap px-5 py-3 text-right font-medium">Status</th>
                                     </tr>
-                                ))}
-                                </tbody>
-                            </table>
-                        </div>
+                                    </thead>
+                                    <tbody>
+                                    {data.transactions
+                                        .slice(
+                                            (historyPage - 1) * HISTORY_PAGE_SIZE,
+                                            historyPage * HISTORY_PAGE_SIZE
+                                        )
+                                        .map((tx) => (
+                                            <tr key={tx.id} className="border-b border-border last:border-0">
+                                                <td className="whitespace-nowrap px-5 py-3 text-muted-foreground">
+                                                    {formatDateShort(tx.date)}
+                                                </td>
+                                                <td className="px-5 py-3 font-medium text-foreground">
+                                                    {tx.description}
+                                                </td>
+                                                <td className="whitespace-nowrap px-5 py-3 text-muted-foreground">
+                                                    {tx.method || "—"}
+                                                </td>
+                                                <td
+                                                    className={`whitespace-nowrap px-5 py-3 text-right font-medium ${
+                                                        tx.amount < 0 ? "text-foreground" : "text-accent"
+                                                    }`}
+                                                >
+                                                    {tx.amount < 0 ? "-" : "+"}
+                                                    {formatCurrency(Math.abs(tx.amount))}
+                                                </td>
+                                                <td className="whitespace-nowrap px-5 py-3 text-right">
+                            <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-foreground">
+                              {tx.status}
+                            </span>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {data.transactions.length > HISTORY_PAGE_SIZE && (
+                                <div className="flex items-center justify-between border-t border-border px-5 py-3 text-sm">
+                  <span className="text-xs text-muted-foreground">
+                    Showing {(historyPage - 1) * HISTORY_PAGE_SIZE + 1}–
+                      {Math.min(historyPage * HISTORY_PAGE_SIZE, data.transactions.length)} of{" "}
+                      {data.transactions.length}
+                  </span>
+                                    <div className="flex gap-2">
+                                        <button
+                                            type="button"
+                                            disabled={historyPage === 1}
+                                            onClick={() => setHistoryPage((p) => p - 1)}
+                                            className="rounded-full border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-40"
+                                        >
+                                            Previous
+                                        </button>
+                                        <button
+                                            type="button"
+                                            disabled={historyPage * HISTORY_PAGE_SIZE >= data.transactions.length}
+                                            onClick={() => setHistoryPage((p) => p + 1)}
+                                            className="rounded-full border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-40"
+                                        >
+                                            Next
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </>
                     )}
                 </div>
             </section>

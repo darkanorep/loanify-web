@@ -19,7 +19,7 @@ const CATEGORIES = ["Inventory", "Equipment", "Working Capital", "Expansion", "E
 function formatCurrency(amount) {
     return new Intl.NumberFormat("en-US", {
         style: "currency",
-        currency: "USD",
+        currency: "PHP",
         maximumFractionDigits: 0,
     }).format(amount);
 }

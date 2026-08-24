@@ -12,7 +12,7 @@ const MONTH_LABELS = {
 function formatCurrency(amount) {
     return new Intl.NumberFormat("en-US", {
         style: "currency",
-        currency: "USD",
+        currency: "PHP",
     }).format(amount);
 }
 
@@ -102,7 +102,6 @@ export default function DashboardPage() {
         <div className="space-y-10">
             <h1 className="text-2xl font-bold text-foreground">Micro-Lending User Dashboard</h1>
 
-            {/* Financial Overview */}
             <section>
                 <h2 className="mb-3 text-lg font-semibold text-foreground">Financial Overview</h2>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -131,32 +130,39 @@ export default function DashboardPage() {
                 </div>
             </section>
 
-            {/* Repayment Progress */}
             <section>
                 <h2 className="mb-3 text-lg font-semibold text-foreground">Repayment Progress</h2>
                 <div className="rounded-2xl border border-border bg-card p-6">
                     {data.repayment_progress.length === 0 ? (
                         <p className="text-sm text-muted-foreground">No repayments recorded yet.</p>
                     ) : (
-                        <div className="flex h-48 items-end gap-3">
-                            {data.repayment_progress.map((m) => (
-                                <div key={m.month} className="flex flex-1 flex-col items-center gap-2">
-                                    <div
-                                        className="w-full rounded-t-md bg-accent/80 transition-all"
-                                        style={{ height: `${(m.total_paid / maxRepayment) * 100}%` }}
-                                        title={`${formatCurrency(m.total_paid)} paid in ${formatMonthLabel(m.month)}`}
-                                    />
-                                    <span className="text-xs text-muted-foreground">
+                        <>
+                            <div className="flex h-40 items-end gap-3">
+                                {data.repayment_progress.map((m) => (
+                                    <div key={m.month} className="flex h-full flex-1 items-end">
+                                        <div
+                                            className="w-full rounded-t-md bg-accent/80 transition-all"
+                                            style={{ height: `${Math.max((m.total_paid / maxRepayment) * 100, 2)}%` }}
+                                            title={`${formatCurrency(m.total_paid)} paid in ${formatMonthLabel(m.month)}`}
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="mt-2 flex gap-3">
+                                {data.repayment_progress.map((m) => (
+                                    <span
+                                        key={m.month}
+                                        className="flex-1 text-center text-xs text-muted-foreground"
+                                    >
                     {formatMonthLabel(m.month)}
                   </span>
-                                </div>
-                            ))}
-                        </div>
+                                ))}
+                            </div>
+                        </>
                     )}
                 </div>
             </section>
 
-            {/* Recent Transactions */}
             <section>
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                     <h2 className="text-lg font-semibold text-foreground">Recent Transactions</h2>
