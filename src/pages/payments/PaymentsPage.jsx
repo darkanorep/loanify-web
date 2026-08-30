@@ -46,15 +46,17 @@ export default function PaymentsPage() {
     const [showAddModal, setShowAddModal] = useState(false);
     const [showPayModal, setShowPayModal] = useState(false);
     const [autopayUpdating, setAutopayUpdating] = useState(false);
+
+    // Pagination & Rows-per-page states
     const [historyPage, setHistoryPage] = useState(1);
-    const HISTORY_PAGE_SIZE = 10;
+    const [historyPageSize, setHistoryPageSize] = useState(5);
 
     function load() {
         setLoading(true);
         getPaymentsSummary()
             .then((res) => {
                 setData(res);
-                setHistoryPage(1); // fresh data (e.g. after a new payment) — start from page 1
+                setHistoryPage(1);
             })
             .catch((err) => {
                 setError(err instanceof ApiError ? err.message : "Couldn't load your payments.");
@@ -133,6 +135,13 @@ export default function PaymentsPage() {
         );
     }
 
+    const totalTransactions = data?.transactions?.length || 0;
+    const totalHistoryPages = Math.ceil(totalTransactions / historyPageSize) || 1;
+    const paginatedTransactions = (data?.transactions || []).slice(
+        (historyPage - 1) * historyPageSize,
+        historyPage * historyPageSize
+    );
+
     return (
         <div className="space-y-8">
             <div className="flex flex-wrap items-start justify-between gap-4">
@@ -181,7 +190,6 @@ export default function PaymentsPage() {
                                         {data.default_payment_method || "None linked"}
                                     </span>
                                 </span>
-                                {/* Add the Pay Early trigger button here */}
                                 <button
                                     type="button"
                                     onClick={() => setShowPayModal(true)}
@@ -214,11 +222,11 @@ export default function PaymentsPage() {
                                     : "bg-secondary ring-border"
                             } ${autopayUpdating ? "opacity-60" : ""}`}
                         >
-              <span
-                  className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-md transition-transform ${
-                      data.autopay_enabled ? "translate-x-5" : "translate-x-0"
-                  }`}
-              />
+                            <span
+                                className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-md transition-transform ${
+                                    data.autopay_enabled ? "translate-x-5" : "translate-x-0"
+                                }`}
+                            />
                         </button>
                     </div>
                     <p className="mt-3 text-sm text-muted-foreground">
@@ -249,14 +257,14 @@ export default function PaymentsPage() {
                         {data.payment_methods.map((pm) => (
                             <div key={pm.id} className="rounded-2xl border border-border bg-card p-5">
                                 <div className="flex items-start justify-between">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-secondary text-foreground">
-                    <AccountIcon type={pm.type} />
-                  </span>
+                                    <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-secondary text-foreground">
+                                        <AccountIcon type={pm.type} />
+                                    </span>
                                     <div className="flex items-center gap-2">
                                         {pm.is_default && (
                                             <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-foreground">
-                        Primary Default
-                      </span>
+                                                Primary Default
+                                            </span>
                                         )}
                                         <button
                                             type="button"
@@ -286,26 +294,44 @@ export default function PaymentsPage() {
             </section>
 
             <section>
-                <div className="mb-3 flex items-center justify-between">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                     <h2 className="text-lg font-semibold text-foreground">Complete Payment History</h2>
-                    <button
-                        type="button"
-                        onClick={handleExportCsv}
-                        className="flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary"
-                    >
-                        <Download className="h-3.5 w-3.5" />
-                        Export CSV
-                    </button>
+                    <div className="flex items-center gap-3">
+                        {/* Rows per page selector */}
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <span>Show:</span>
+                            <select
+                                value={historyPageSize}
+                                onChange={(e) => {
+                                    setHistoryPageSize(Number(e.target.value));
+                                    setHistoryPage(1);
+                                }}
+                                className="rounded-md border border-border bg-card px-2 py-1 text-xs text-foreground outline-none"
+                            >
+                                <option value={5}>5</option>
+                                <option value={10}>10</option>
+                                <option value={20}>20</option>
+                            </select>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={handleExportCsv}
+                            className="flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary"
+                        >
+                            <Download className="h-3.5 w-3.5" />
+                            Export CSV
+                        </button>
+                    </div>
                 </div>
 
                 <div className="overflow-hidden rounded-2xl border border-border bg-card">
-                    {data.transactions.length === 0 ? (
+                    {totalTransactions === 0 ? (
                         <p className="p-6 text-center text-sm text-muted-foreground">No transactions yet.</p>
                     ) : (
                         <>
-                            <div className="max-h-[420px] overflow-y-auto overflow-x-auto">
+                            <div className="overflow-x-auto">
                                 <table className="w-full text-sm">
-                                    <thead className="sticky top-0 bg-secondary/95 backdrop-blur-sm">
+                                    <thead className="bg-secondary/95 backdrop-blur-sm">
                                     <tr className="border-b border-border text-left text-xs text-muted-foreground">
                                         <th className="whitespace-nowrap px-5 py-3 font-medium">Date</th>
                                         <th className="px-5 py-3 font-medium">Description</th>
@@ -315,68 +341,61 @@ export default function PaymentsPage() {
                                     </tr>
                                     </thead>
                                     <tbody>
-                                    {data.transactions
-                                        .slice(
-                                            (historyPage - 1) * HISTORY_PAGE_SIZE,
-                                            historyPage * HISTORY_PAGE_SIZE
-                                        )
-                                        .map((tx) => (
-                                            <tr key={tx.id} className="border-b border-border last:border-0">
-                                                <td className="whitespace-nowrap px-5 py-3 text-muted-foreground">
-                                                    {formatDateShort(tx.date)}
-                                                </td>
-                                                <td className="px-5 py-3 font-medium text-foreground">
-                                                    {tx.description}
-                                                </td>
-                                                <td className="whitespace-nowrap px-5 py-3 text-muted-foreground">
-                                                    {tx.method || "—"}
-                                                </td>
-                                                <td
-                                                    className={`whitespace-nowrap px-5 py-3 text-right font-medium ${
-                                                        tx.amount < 0 ? "text-foreground" : "text-accent"
-                                                    }`}
-                                                >
-                                                    {tx.amount < 0 ? "-" : "+"}
-                                                    {formatCurrency(Math.abs(tx.amount))}
-                                                </td>
-                                                <td className="whitespace-nowrap px-5 py-3 text-right">
-                            <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-foreground">
-                              {tx.status}
-                            </span>
-                                                </td>
-                                            </tr>
-                                        ))}
+                                    {paginatedTransactions.map((tx) => (
+                                        <tr key={tx.id} className="border-b border-border last:border-0">
+                                            <td className="whitespace-nowrap px-5 py-3 text-muted-foreground">
+                                                {formatDateShort(tx.date)}
+                                            </td>
+                                            <td className="px-5 py-3 font-medium text-foreground">
+                                                {tx.description}
+                                            </td>
+                                            <td className="whitespace-nowrap px-5 py-3 text-muted-foreground">
+                                                {tx.method || "—"}
+                                            </td>
+                                            <td
+                                                className={`whitespace-nowrap px-5 py-3 text-right font-medium ${
+                                                    tx.amount < 0 ? "text-foreground" : "text-accent"
+                                                }`}
+                                            >
+                                                {tx.amount < 0 ? "-" : "+"}
+                                                {formatCurrency(Math.abs(tx.amount))}
+                                            </td>
+                                            <td className="whitespace-nowrap px-5 py-3 text-right">
+                                                <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-foreground">
+                                                    {tx.status}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    ))}
                                     </tbody>
                                 </table>
                             </div>
 
-                            {data.transactions.length > HISTORY_PAGE_SIZE && (
-                                <div className="flex items-center justify-between border-t border-border px-5 py-3 text-sm">
-                  <span className="text-xs text-muted-foreground">
-                    Showing {(historyPage - 1) * HISTORY_PAGE_SIZE + 1}–
-                      {Math.min(historyPage * HISTORY_PAGE_SIZE, data.transactions.length)} of{" "}
-                      {data.transactions.length}
-                  </span>
-                                    <div className="flex gap-2">
-                                        <button
-                                            type="button"
-                                            disabled={historyPage === 1}
-                                            onClick={() => setHistoryPage((p) => p - 1)}
-                                            className="rounded-full border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-40"
-                                        >
-                                            Previous
-                                        </button>
-                                        <button
-                                            type="button"
-                                            disabled={historyPage * HISTORY_PAGE_SIZE >= data.transactions.length}
-                                            onClick={() => setHistoryPage((p) => p + 1)}
-                                            className="rounded-full border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-40"
-                                        >
-                                            Next
-                                        </button>
-                                    </div>
+                            <div className="flex items-center justify-between border-t border-border px-5 py-3 text-sm">
+                                <span className="text-xs text-muted-foreground">
+                                    Showing {(historyPage - 1) * historyPageSize + 1}–
+                                    {Math.min(historyPage * historyPageSize, totalTransactions)} of{" "}
+                                    {totalTransactions}
+                                </span>
+                                <div className="flex gap-2">
+                                    <button
+                                        type="button"
+                                        disabled={historyPage === 1}
+                                        onClick={() => setHistoryPage((p) => p - 1)}
+                                        className="rounded-full border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-40"
+                                    >
+                                        Previous
+                                    </button>
+                                    <button
+                                        type="button"
+                                        disabled={historyPage >= totalHistoryPages}
+                                        onClick={() => setHistoryPage((p) => p + 1)}
+                                        className="rounded-full border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-40"
+                                    >
+                                        Next
+                                    </button>
                                 </div>
-                            )}
+                            </div>
                         </>
                     )}
                 </div>
@@ -396,7 +415,7 @@ export default function PaymentsPage() {
                 <MakePaymentModal
                     loans={data.active_loans}
                     paymentMethods={data.payment_methods}
-                    preselectedLoanId={data.next_due?.loan_id} // Passes the backend loan_id directly
+                    preselectedLoanId={data.next_due?.loan_id}
                     onClose={() => setShowPayModal(false)}
                     onSuccess={() => {
                         setShowPayModal(false);

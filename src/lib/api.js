@@ -231,3 +231,10 @@ export function updateProfile(payload) {
     body: JSON.stringify(payload),
   });
 }
+
+export function requestProfileOtp(payload) {
+  return request("/api/auth/request-profile-otp", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
