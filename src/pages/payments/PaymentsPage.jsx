@@ -160,8 +160,8 @@ export default function PaymentsPage() {
                         </div>
                         {data.next_due && (
                             <span className="rounded-full bg-accent/15 px-3 py-1 text-xs font-semibold text-accent">
-                Due {formatDate(data.next_due.due_date)}
-              </span>
+                                Due {formatDate(data.next_due.due_date)}
+                            </span>
                         )}
                     </div>
 
@@ -170,17 +170,25 @@ export default function PaymentsPage() {
                             <p className="mt-3 text-3xl font-bold text-accent">
                                 {formatCurrency(data.next_due.amount)}
                                 <span className="ml-2 text-sm font-normal text-muted-foreground">
-                  for {data.next_due.active_loan_count} active micro-loan
+                                    for {data.next_due.active_loan_count} active micro-loan
                                     {data.next_due.active_loan_count === 1 ? "" : "s"}
-                </span>
+                                </span>
                             </p>
                             <div className="mt-4 flex items-center justify-between border-t border-border pt-3 text-sm">
-                <span className="text-muted-foreground">
-                  Auto-Debit Account:{" "}
-                    <span className="font-semibold text-foreground">
-                    {data.default_payment_method || "None linked"}
-                  </span>
-                </span>
+                                <span className="text-muted-foreground">
+                                    Auto-Debit Account:{" "}
+                                    <span className="font-semibold text-foreground">
+                                        {data.default_payment_method || "None linked"}
+                                    </span>
+                                </span>
+                                {/* Add the Pay Early trigger button here */}
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPayModal(true)}
+                                    className="font-semibold text-accent hover:underline"
+                                >
+                                    Pay Early →
+                                </button>
                             </div>
                         </>
                     ) : (
@@ -388,10 +396,11 @@ export default function PaymentsPage() {
                 <MakePaymentModal
                     loans={data.active_loans}
                     paymentMethods={data.payment_methods}
+                    preselectedLoanId={data.next_due?.loan_id} // Passes the backend loan_id directly
                     onClose={() => setShowPayModal(false)}
                     onSuccess={() => {
                         setShowPayModal(false);
-                        load(); // refresh balances, next-due date, and transaction history
+                        load();
                     }}
                 />
             )}

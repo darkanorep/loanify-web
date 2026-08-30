@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X, Landmark, CreditCard, ShieldCheck } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -34,15 +34,28 @@ export default function MakePaymentModal({
                                              onClose,
                                              onSuccess,
                                          }) {
+    // Prioritize the passed preselectedLoanId, falling back to the first active loan's id if necessary
     const [loanId, setLoanId] = useState(preselectedLoanId ?? loans[0]?.id ?? null);
-    const [amount, setAmount] = useState(loans[0]?.monthly_installment ?? 0);
+    
+    // Find the correct selected loan object based on the current loanId state
+    const selectedLoan = loans.find((l) => l.id === loanId) || loans[0];
+
+    // Initialize amount based on the correct selected loan's monthly installment
+    const [amount, setAmount] = useState(selectedLoan?.monthly_installment ?? 0);
     const [methodId, setMethodId] = useState(
         paymentMethods.find((m) => m.is_default)?.id ?? paymentMethods[0]?.id ?? null
     );
     const [error, setError] = useState("");
     const [submitting, setSubmitting] = useState(false);
 
-    const selectedLoan = loans.find((l) => l.id === loanId);
+    // Keep state synchronized if preselectedLoanId changes or updates
+    useEffect(() => {
+        if (preselectedLoanId) {
+            setLoanId(preselectedLoanId);
+            const loan = loans.find((l) => l.id === preselectedLoanId);
+            if (loan) setAmount(loan.monthly_installment);
+        }
+    }, [preselectedLoanId, loans]);
 
     function handleSelectLoan(id) {
         setLoanId(id);
