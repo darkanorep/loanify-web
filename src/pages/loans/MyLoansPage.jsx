@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import { Plus, FileText } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { getMyLoans, approveLoan as approveLoanRequest, ApiError } from "@/lib/api";
+import { getMyLoans, getPaymentsSummary, approveLoan as approveLoanRequest, ApiError } from "@/lib/api";
 import RequestLoanModal from "./RequestLoanModal.jsx";
+import MakePaymentModal from "../payments/MakePaymentModal.jsx";
 
 function formatCurrency(amount) {
     return new Intl.NumberFormat("en-US", {
@@ -51,7 +52,7 @@ const TABS = [
     { key: "completed", label: "Completed", match: (loan) => loan.status === "COMPLETED" },
 ];
 
-function LoanCard({ loan, onApprove, approving }) {
+function LoanCard({ loan, onApprove, approving, onMakePayment }) {
     const totalRepayable = Number(loan.total_repayable);
     const totalPaid = Number(loan.total_paid);
     const outstanding = Number(loan.outstanding_balance);
@@ -137,7 +138,8 @@ function LoanCard({ loan, onApprove, approving }) {
                     <Button
                         type="button"
                         className="flex-1 bg-accent text-accent-foreground hover:bg-accent/90"
-                        onClick={() => alert("Make Payment isn't wired up yet — placeholder for now.")}
+                        disabled={loan.status !== "ACTIVE"}
+                        onClick={() => onMakePayment(loan.id)}
                     >
                         Make Payment
                     </Button>
@@ -164,6 +166,18 @@ export default function MyLoansPage() {
     const [approvingId, setApprovingId] = useState(null);
     const [showRequestModal, setShowRequestModal] = useState(false);
 
+    // Payment methods are fetched separately (and non-blockingly) from the
+    // main loans list — the Make Payment modal needs them, but this page's
+    // core job is showing loans, so a failure here shouldn't take the whole
+    // page down. See MakePaymentModal usage below.
+    const [paymentMethods, setPaymentMethods] = useState([]);
+    const [paymentMethodsError, setPaymentMethodsError] = useState("");
+
+    // Which loan (if any) the payment modal is currently open for. Storing
+    // the id (not the loan object) keeps a single source of truth — the
+    // modal always reads the live loan from `loans` via preselectedLoanId.
+    const [payingLoanId, setPayingLoanId] = useState(null);
+
     useEffect(() => {
         getMyLoans()
             .then((res) => setLoans(res.loans))
@@ -171,6 +185,16 @@ export default function MyLoansPage() {
                 setError(err instanceof ApiError ? err.message : "Couldn't load your loans.");
             })
             .finally(() => setLoading(false));
+    }, []);
+
+    useEffect(() => {
+        getPaymentsSummary()
+            .then((res) => setPaymentMethods(res.payment_methods ?? []))
+            .catch((err) => {
+                setPaymentMethodsError(
+                    err instanceof ApiError ? err.message : "Couldn't load your payment accounts."
+                );
+            });
     }, []);
 
     async function handleApprove(loanId) {
@@ -183,6 +207,28 @@ export default function MyLoansPage() {
         } finally {
             setApprovingId(null);
         }
+    }
+
+    function handleMakePayment(loanId) {
+        if (paymentMethodsError) {
+            alert(paymentMethodsError);
+            return;
+        }
+        if (paymentMethods.length === 0) {
+            alert("Link a payment account on the Payments page before making a payment.");
+            return;
+        }
+        setPayingLoanId(loanId);
+    }
+
+    function handlePaymentSuccess(res) {
+        // makePayment() returns the updated loan (new balance, progress, next
+        // installment) — patch it into local state so the card reflects the
+        // payment immediately without a full refetch.
+        if (res?.loan) {
+            setLoans((prev) => prev.map((l) => (l.id === res.loan.id ? res.loan : l)));
+        }
+        setPayingLoanId(null);
     }
 
     if (loading) {
@@ -201,6 +247,10 @@ export default function MyLoansPage() {
     }
 
     const filteredLoans = loans.filter((loan) => TABS.find((t) => t.key === activeTab).match(loan));
+
+    // Only ACTIVE loans are payable — PENDING isn't approved yet, and
+    // COMPLETED/REJECTED/DEFAULTED/CANCELLED have nothing left to pay.
+    const payableLoans = loans.filter((l) => l.status === "ACTIVE");
 
     return (
         <div className="space-y-6">
@@ -230,6 +280,16 @@ export default function MyLoansPage() {
                         setShowRequestModal(false);
                         setActiveTab("all"); // so the new PENDING loan is visible immediately
                     }}
+                />
+            )}
+
+            {payingLoanId && (
+                <MakePaymentModal
+                    loans={payableLoans}
+                    paymentMethods={paymentMethods}
+                    preselectedLoanId={payingLoanId}
+                    onClose={() => setPayingLoanId(null)}
+                    onSuccess={handlePaymentSuccess}
                 />
             )}
 
@@ -264,6 +324,7 @@ export default function MyLoansPage() {
                             loan={loan}
                             onApprove={handleApprove}
                             approving={approvingId === loan.id}
+                            onMakePayment={handleMakePayment}
                         />
                     ))}
                 </div>

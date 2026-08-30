@@ -200,13 +200,15 @@ export default function PaymentsPage() {
                             aria-checked={data.autopay_enabled}
                             onClick={handleToggleAutopay}
                             disabled={autopayUpdating}
-                            className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
-                                data.autopay_enabled ? "bg-accent" : "bg-secondary"
-                            }`}
+                            className={`relative h-6 w-11 shrink-0 rounded-full ring-1 ring-inset transition-colors ${
+                                data.autopay_enabled
+                                    ? "bg-accent ring-accent"
+                                    : "bg-secondary ring-border"
+                            } ${autopayUpdating ? "opacity-60" : ""}`}
                         >
               <span
-                  className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
-                      data.autopay_enabled ? "translate-x-5" : "translate-x-0.5"
+                  className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-md transition-transform ${
+                      data.autopay_enabled ? "translate-x-5" : "translate-x-0"
                   }`}
               />
                         </button>
