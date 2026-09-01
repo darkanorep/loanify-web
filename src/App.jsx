@@ -12,6 +12,7 @@ import MyLoansPage from "./pages/loans/MyLoansPage.jsx";
 import PaymentsPage from "./pages/payments/PaymentsPage.jsx";
 import ProfilePage from "./pages/profile/ProfilePage.jsx";
 import SupportPage from "./pages/support/SupportPage.jsx";
+import P2PMarketplacePage from "./pages/p2p/P2PMarketplacePage.jsx";
 
 export default function App() {
     return (
@@ -35,6 +36,7 @@ export default function App() {
                     <Route index element={<DashboardPage />} />
                     <Route path="loans" element={<MyLoansPage />} />
                     <Route path="payments" element={<PaymentsPage />} />
+                    <Route path="p2p-marketplace" element={<P2PMarketplacePage />} />
                     <Route path="profile" element={<ProfilePage />} />
                     <Route path="support" element={<SupportPage />} />
                 </Route>

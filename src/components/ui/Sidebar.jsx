@@ -6,6 +6,7 @@ import {
     User,
     Headphones,
     LogOut,
+    Store,
 } from "lucide-react";
 
 import { clearToken } from "@/lib/authToken.js";
@@ -13,6 +14,7 @@ import { clearToken } from "@/lib/authToken.js";
 const navItems = [
     { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, end: true },
     { to: "/dashboard/loans", label: "My Loans", icon: HandCoins },
+    { to: "/dashboard/p2p-marketplace", label: "P2P Marketplace", icon: Store },
     { to: "/dashboard/payments", label: "Payments", icon: CreditCard },
     { to: "/dashboard/profile", label: "Profile", icon: User },
     { to: "/dashboard/support", label: "Support", icon: Headphones },
@@ -20,10 +22,6 @@ const navItems = [
 
 export default function Sidebar() {
     function handleLogout() {
-        // Clears the JWT for Google-login users. Regular session-cookie users
-        // also need a real backend call (e.g. POST /api/auth/logout) to
-        // invalidate the session server-side — add that once that endpoint
-        // exists; this alone only clears the client-side token half of it.
         clearToken();
         window.location.href = "/login";
     }

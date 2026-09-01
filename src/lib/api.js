@@ -238,3 +238,21 @@ export function requestProfileOtp(payload) {
     body: JSON.stringify(payload),
   });
 }
+
+export function getP2pMarketplace() {
+  return request("/api/p2p/marketplace", { method: "GET" });
+}
+
+export function createP2pListing(payload) {
+  return request("/api/p2p/list", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function approveP2pLoan(payload) {
+  return request("/api/p2p/approve", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
