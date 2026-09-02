@@ -8,8 +8,7 @@ import {
     LogOut,
     Store,
 } from "lucide-react";
-
-import { clearToken } from "@/lib/authToken.js";
+import { apiFetch } from "@/lib/apiClient.js";
 
 const navItems = [
     { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, end: true },
@@ -21,9 +20,14 @@ const navItems = [
 ];
 
 export default function Sidebar() {
-    function handleLogout() {
-        clearToken();
-        window.location.href = "/login";
+    async function handleLogout() {
+        try {
+            await apiFetch("/api/auth/logout", { method: "POST" });
+        } catch (err) {
+        } finally {
+            localStorage.removeItem("token");
+            window.location.href = "/login";
+        }
     }
 
     return (
