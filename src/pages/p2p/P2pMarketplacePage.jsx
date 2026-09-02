@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { PlusCircle, Shield, X, Send, CheckCircle2, BellRing } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getToken } from "@/lib/authToken.js";
@@ -8,7 +9,9 @@ function formatCurrency(amount) {
 }
 
 export default function P2pMarketplacePage() {
-  const [activeTab, setActiveTab] = useState("marketplace");
+  const [searchParams] = useSearchParams();
+  const initialTab = searchParams.get("tab") || "marketplace";
+  const [activeTab, setActiveTab] = useState(initialTab);
 
   const [offers, setOffers] = useState([]);
   const [applications, setApplications] = useState([]);
@@ -27,8 +30,10 @@ export default function P2pMarketplacePage() {
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState("");
 
+
   // Real-time notification state
   const [notification, setNotification] = useState(null);
+  const [notifications, setNotifications] = useState([]);
 
   // Initialize Native WebSocket Connection
   useEffect(() => {
@@ -78,6 +83,26 @@ export default function P2pMarketplacePage() {
       setLoading(false);
     }
   }
+
+  // Fetch existing notifications on mount
+  async function loadNotifications() {
+    try {
+      const res = await fetch("/api/notifications", {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setNotifications(data);
+      }
+    } catch (err) {
+      console.error("Failed to load notifications", err);
+    }
+  }
+
+  // Call it on component mount
+  useEffect(() => {
+    loadNotifications();
+  }, []);
 
   useEffect(() => {
     loadData();
