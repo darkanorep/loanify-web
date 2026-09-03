@@ -1,15 +1,29 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { PlusCircle, Shield, X, Send, CheckCircle2, BellRing, MessageSquare, Edit3 } from "lucide-react";
+import { PlusCircle, Shield, X, Send, CheckCircle2, BellRing, MessageSquare, Edit3, Trash2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getToken } from "@/lib/authToken.js";
 import ChatModal from "./ChatModal.jsx";
+import RequestLoanModal from "../loans/RequestLoanModal.jsx";
 
 function formatCurrency(amount) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "PHP", maximumFractionDigits: 0 }).format(amount);
 }
 
-// Helper to extract current user ID from JWT token payload
+// Helper to format numbers with commas while typing (e.g., 10,000)
+function formatNumberInput(value) {
+  if (!value && value !== 0) return "";
+  const raw = value.toString().replace(/,/g, "").replace(/\D/g, "");
+  if (!raw) return "";
+  return new Intl.NumberFormat("en-US").format(Number(raw));
+}
+
+// Helper to strip commas before saving/submitting
+function parseNumberInput(formattedValue) {
+  if (!formattedValue) return "";
+  return formattedValue.toString().replace(/,/g, "");
+}
+
 function getCurrentUserId() {
   const token = getToken();
   if (!token) return null;
@@ -29,6 +43,7 @@ export default function P2pMarketplacePage() {
 
   const [offers, setOffers] = useState([]);
   const [applications, setApplications] = useState([]);
+  const [borrowerApplications, setBorrowerApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -37,7 +52,6 @@ export default function P2pMarketplacePage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedOffer, setSelectedOffer] = useState(null);
 
-  // Chat modal state
   const [activeChat, setActiveChat] = useState(null);
 
   const [amountAvailable, setAmountAvailable] = useState("");
@@ -45,7 +59,6 @@ export default function P2pMarketplacePage() {
   const [termMonths, setTermMonths] = useState("6");
   const [borrowAmount, setBorrowAmount] = useState("");
 
-  // Edit offer state
   const [editAmount, setEditAmount] = useState("");
   const [editInterest, setEditInterest] = useState("");
   const [editTerm, setEditTerm] = useState("");
@@ -56,7 +69,6 @@ export default function P2pMarketplacePage() {
 
   const currentUserId = getCurrentUserId();
 
-  // Initialize Native WebSocket Connection
   useEffect(() => {
     const token = getToken();
     if (!token) return;
@@ -66,15 +78,11 @@ export default function P2pMarketplacePage() {
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-
-        // Handle notifications
-        if (data.type === "new_application" || data.type === "loan_approved" || data.type === "loan_rejected") {
+        if (["new_application", "loan_approved", "loan_rejected"].includes(data.type)) {
           setNotification(data);
           loadData();
           setTimeout(() => setNotification(null), 6000);
         }
-
-        // Handle real-time marketplace listing changes
         if (data.type === "marketplace_update") {
           loadData();
         }
@@ -84,34 +92,40 @@ export default function P2pMarketplacePage() {
     };
 
     return () => ws.close();
-  }, [activeTab]);
+  }, []);
 
   async function loadData() {
     setLoading(true);
     setError("");
     try {
-      const endpoint = activeTab === "marketplace" ? "/api/p2p/marketplace" : "/api/p2p/applications";
-      const res = await fetch(endpoint, {
-        headers: { Authorization: `Bearer ${getToken()}` },
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to load data.");
+      const headers = { Authorization: `Bearer ${getToken()}` };
 
       if (activeTab === "marketplace") {
-        const currentUserId = getCurrentUserId();
-        // Sort items so that the current user's offers appear first
+        const res = await fetch("/api/p2p/marketplace", { headers });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed to load marketplace.");
+
+        const currentUserIdNum = currentUserId ? Number(currentUserId) : null;
         const sortedOffers = data.sort((a, b) => {
-          const aId = a.user_id || a.lender_id || a.lender?.id;
-          const bId = b.user_id || b.lender_id || b.lender?.id;
-          const aIsMine = aId === currentUserId;
-          const bIsMine = bId === currentUserId;
+          const aId = Number(a.user_id || a.lender_id || a.lender?.id);
+          const bId = Number(b.user_id || b.lender_id || b.lender?.id);
+          const aIsMine = aId === currentUserIdNum;
+          const bIsMine = bId === currentUserIdNum;
           if (aIsMine && !bIsMine) return -1;
           if (!aIsMine && bIsMine) return 1;
           return 0;
         });
         setOffers(sortedOffers);
-      } else {
+      } else if (activeTab === "incoming") {
+        const res = await fetch("/api/p2p/applications", { headers });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed to load applications.");
         setApplications(data);
+      } else if (activeTab === "my-applications") {
+        const res = await fetch("/api/p2p/borrower-applications", { headers });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed to load your applications.");
+        setBorrowerApplications(data);
       }
     } catch (err) {
       setError(err.message);
@@ -132,7 +146,7 @@ export default function P2pMarketplacePage() {
       const res = await fetch("/api/p2p/offer", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
-        body: JSON.stringify({ amount_available: parseFloat(amountAvailable), interest_rate: parseFloat(interestRate), term_months: parseInt(termMonths) }),
+        body: JSON.stringify({ amount_available: parseFloat(parseNumberInput(amountAvailable)), interest_rate: parseFloat(interestRate), term_months: parseInt(termMonths) }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to publish offer.");
@@ -155,7 +169,7 @@ export default function P2pMarketplacePage() {
       const res = await fetch(`/api/p2p/offer/${selectedOffer.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
-        body: JSON.stringify({ amount_available: parseFloat(editAmount), interest_rate: parseFloat(editInterest), term_months: parseInt(editTerm) }),
+        body: JSON.stringify({ amount_available: parseFloat(parseNumberInput(editAmount)), interest_rate: parseFloat(editInterest), term_months: parseInt(editTerm) }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to update offer.");
@@ -170,6 +184,38 @@ export default function P2pMarketplacePage() {
     }
   }
 
+  async function handleDeleteOffer(offerId) {
+    if (!window.confirm("Are you sure you want to delete this offer?")) return;
+    setError("");
+    try {
+      const res = await fetch(`/api/p2p/offer/${offerId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to delete offer.");
+      loadData();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function handleCancelApplication(appId) {
+    if (!window.confirm("Are you sure you want to cancel this loan application?")) return;
+    setError("");
+    try {
+      const res = await fetch(`/api/p2p/applications/${appId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to cancel application.");
+      loadData();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   async function handleApply(e) {
     e.preventDefault();
     setActionError("");
@@ -178,7 +224,7 @@ export default function P2pMarketplacePage() {
       const res = await fetch("/api/p2p/apply", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
-        body: JSON.stringify({ offer_id: selectedOffer.id, amount: parseFloat(borrowAmount) }),
+        body: JSON.stringify({ offer_id: selectedOffer.id, amount: parseFloat(parseNumberInput(borrowAmount)) }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to apply to offer.");
@@ -212,6 +258,24 @@ export default function P2pMarketplacePage() {
     }
   }
 
+  async function handleReject(applicationId) {
+    if (!window.confirm("Are you sure you want to reject this application?")) return;
+    setLoading(true);
+    try {
+      const res = await fetch("/api/p2p/applications/reject", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({ application_id: applicationId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to reject application.");
+      loadData();
+    } catch (err) {
+      setError(err.message);
+      setLoading(false);
+    }
+  }
+
   return (
       <div className="relative space-y-8">
         {notification && (
@@ -232,7 +296,8 @@ export default function P2pMarketplacePage() {
             <h1 className="text-2xl font-bold text-foreground">P2P Lending</h1>
             <div className="mt-4 flex gap-4 border-b border-border pb-1">
               <button className={`text-sm font-medium pb-2 ${activeTab === "marketplace" ? "border-b-2 border-primary text-foreground" : "text-muted-foreground hover:text-foreground"}`} onClick={() => setActiveTab("marketplace")}>Marketplace</button>
-              <button className={`text-sm font-medium pb-2 ${activeTab === "applications" ? "border-b-2 border-primary text-foreground" : "text-muted-foreground hover:text-foreground"}`} onClick={() => setActiveTab("applications")}>Incoming Applications</button>
+              <button className={`text-sm font-medium pb-2 ${activeTab === "my-applications" ? "border-b-2 border-primary text-foreground" : "text-muted-foreground hover:text-foreground"}`} onClick={() => setActiveTab("my-applications")}>My Applications</button>
+              <button className={`text-sm font-medium pb-2 ${activeTab === "incoming" ? "border-b-2 border-primary text-foreground" : "text-muted-foreground hover:text-foreground"}`} onClick={() => setActiveTab("incoming")}>Incoming Applications</button>
             </div>
           </div>
           <Button onClick={() => setShowCreateModal(true)} className="flex items-center gap-2">
@@ -248,8 +313,9 @@ export default function P2pMarketplacePage() {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {offers.length === 0 && <p className="text-sm text-muted-foreground col-span-full">No active offers available right now.</p>}
               {offers.map((offer) => {
-                const lenderId = offer.user_id || offer.lender_id || offer.lender?.id;
-                const isMyOffer = lenderId === currentUserId;
+                const lenderId = Number(offer.user_id || offer.lender_id || offer.lender?.id);
+                const isMyOffer = lenderId === Number(currentUserId);
+                const hasActiveApps = offer.applications && offer.applications.some(app => ['PENDING', 'APPROVED', 'ACTIVE'].includes(app.status));
 
                 return (
                     <div key={offer.id} className="rounded-2xl border border-border bg-card p-5 flex flex-col justify-between">
@@ -272,31 +338,72 @@ export default function P2pMarketplacePage() {
                         )}
 
                         {isMyOffer ? (
-                            <Button
-                                variant="outline"
-                                className="w-full flex items-center gap-2"
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedOffer(offer);
-                                  setEditAmount(offer.amount_available);
-                                  setEditInterest(offer.interest_rate);
-                                  setEditTerm(offer.term_months);
-                                  setShowEditModal(true);
-                                }}
-                            >
-                              <Edit3 className="h-4 w-4 text-accent" /> Edit Offer
-                            </Button>
+                            <div className="flex flex-col gap-2">
+                              <Button
+                                  variant="outline"
+                                  className={`w-full flex items-center justify-center gap-2 ${hasActiveApps ? "opacity-50 cursor-not-allowed bg-secondary/30" : ""}`}
+                                  size="sm"
+                                  disabled={hasActiveApps}
+                                  onClick={() => {
+                                    setSelectedOffer(offer);
+                                    setEditAmount(offer.amount_available);
+                                    setEditInterest(offer.interest_rate);
+                                    setEditTerm(offer.term_months);
+                                    setShowEditModal(true);
+                                  }}
+                              >
+                                <Edit3 className={`h-4 w-4 ${hasActiveApps ? "text-muted-foreground" : "text-accent"}`} /> Edit Offer
+                              </Button>
+                              <Button
+                                  variant="outline"
+                                  className={`w-full flex items-center justify-center gap-2 ${hasActiveApps ? "opacity-50 cursor-not-allowed text-muted-foreground bg-secondary/30" : "text-destructive hover:bg-destructive/10"}`}
+                                  size="sm"
+                                  disabled={hasActiveApps}
+                                  onClick={() => handleDeleteOffer(offer.id)}
+                              >
+                                Delete Offer
+                              </Button>
+                            </div>
                         ) : (
-                            <Button
-                                variant="outline"
-                                className="w-full flex items-center gap-2"
-                                size="sm"
-                                onClick={() => {
-                                  const name = offer.lender ? `${offer.lender.first_name} ${offer.lender.last_name}` : "Lender";
-                                  setActiveChat({ id: lenderId, name });
-                                }}
-                            >
+                            <Button variant="outline" className="w-full flex items-center gap-2" size="sm" onClick={() => setActiveChat({
+                              id: lenderId,
+                              name: offer.lender ? `${offer.lender.first_name} ${offer.lender.last_name}` : "Lender",
+                              loanDetails: { amount: offer.amount_available, interest: offer.interest_rate, term: offer.term_months }
+                            })}>
                               <MessageSquare className="h-4 w-4 text-accent" /> Chat with Lender
+                            </Button>
+                        )}
+                      </div>
+                    </div>
+                );
+              })}
+            </div>
+        ) : activeTab === "my-applications" ? (
+            <div className="space-y-4">
+              {borrowerApplications.length === 0 && <p className="text-sm text-muted-foreground">You have no pending or active loan applications.</p>}
+              {borrowerApplications.map((app) => {
+                const lenderId = Number(app.offer?.lender?.id || app.offer?.user_id || app.offer?.lender_id);
+                return (
+                    <div key={app.id} className="flex items-center justify-between rounded-xl border border-border bg-card p-4">
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">Lender: {app.offer.lender.first_name} {app.offer.lender.last_name}</p>
+                        <div className="mt-1 flex items-center gap-4 text-xs text-muted-foreground">
+                          <span>Applied Amount: <strong className="text-foreground">{formatCurrency(app.amount)}</strong></span>
+                          <span>Terms: {app.offer.interest_rate}% / {app.offer.term_months} Months</span>
+                          <span>Status: <strong className={`uppercase ${app.status === 'PENDING' ? 'text-amber-500' : app.status === 'APPROVED' ? 'text-emerald-500' : 'text-destructive'}`}>{app.status}</strong></span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm" onClick={() => setActiveChat({
+                          id: lenderId,
+                          name: `${app.offer.lender.first_name} ${app.offer.lender.last_name}`,
+                          loanDetails: { amount: app.amount, interest: app.offer.interest_rate, term: app.offer.term_months }
+                        })}>
+                          <MessageSquare className="h-4 w-4 text-accent" /> Chat
+                        </Button>
+                        {app.status === 'PENDING' && (
+                            <Button variant="outline" size="sm" className="text-destructive hover:bg-destructive/10 flex items-center gap-1.5" onClick={() => handleCancelApplication(app.id)}>
+                              <Trash2 className="h-4 w-4" /> Cancel Application
                             </Button>
                         )}
                       </div>
@@ -306,25 +413,42 @@ export default function P2pMarketplacePage() {
             </div>
         ) : (
             <div className="space-y-4">
-              {applications.length === 0 && <p className="text-sm text-muted-foreground">You have no pending applications for your offers.</p>}
-              {applications.map((app) => (
-                  <div key={app.id} className="flex items-center justify-between rounded-xl border border-border bg-card p-4">
-                    <div>
-                      <p className="text-sm font-semibold text-foreground">Borrower: {app.borrower.first_name} {app.borrower.last_name}</p>
-                      <div className="mt-1 flex items-center gap-4 text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1"><Shield className="h-3 w-3" /> Score: {app.borrower.credit_score}</span>
-                        <span>Requested: <strong className="text-foreground">{formatCurrency(app.amount)}</strong></span>
-                        <span>From Offer Terms: {app.offer.interest_rate}% / {app.offer.term_months} Months</span>
+              {applications.length === 0 && <p className="text-sm text-muted-foreground">You have no incoming applications for your offers.</p>}
+              {applications.map((app) => {
+                const borrowerId = Number(app.borrower_id || app.borrower?.id);
+                return (
+                    <div key={app.id} className="flex items-center justify-between rounded-xl border border-border bg-card p-4">
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">Borrower: {app.borrower.first_name} {app.borrower.last_name}</p>
+                        <div className="mt-1 flex items-center gap-4 text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1"><Shield className="h-3 w-3" /> Score: {app.borrower.credit_score}</span>
+                          <span>Requested: <strong className="text-foreground">{formatCurrency(app.amount)}</strong></span>
+                          <span>From Offer Terms: {app.offer.interest_rate}% / {app.offer.term_months} Months</span>
+                          <span>Status: <strong className="uppercase text-amber-500">{app.status}</strong></span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm" onClick={() => setActiveChat({
+                          id: borrowerId,
+                          name: app.borrower ? `${app.borrower.first_name} ${app.borrower.last_name}` : "Borrower",
+                          loanDetails: { amount: app.amount, interest: app.offer.interest_rate, term: app.offer.term_months }
+                        })}>
+                          <MessageSquare className="h-4 w-4 text-accent" /> Chat
+                        </Button>
+                        {app.status === 'PENDING' && (
+                            <>
+                              <Button variant="outline" size="sm" onClick={() => handleReject(app.id)} className="text-destructive hover:bg-destructive/10 flex items-center gap-1">
+                                <XCircle className="h-4 w-4" /> Reject
+                              </Button>
+                              <Button size="sm" onClick={() => handleApprove(app.id)} className="flex items-center gap-2">
+                                <CheckCircle2 className="h-4 w-4" /> Approve
+                              </Button>
+                            </>
+                        )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Button variant="outline" size="sm" onClick={() => setActiveChat({ id: app.borrower.id, name: `${app.borrower.first_name} ${app.borrower.last_name}` })}>
-                        <MessageSquare className="h-4 w-4 text-accent" /> Chat
-                      </Button>
-                      <Button size="sm" onClick={() => handleApprove(app.id)} className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4" /> Approve</Button>
-                    </div>
-                  </div>
-              ))}
+                );
+              })}
             </div>
         )}
 
@@ -332,6 +456,7 @@ export default function P2pMarketplacePage() {
             <ChatModal
                 recipientId={activeChat.id}
                 recipientName={activeChat.name}
+                loanDetails={activeChat.loanDetails}
                 onClose={() => setActiveChat(null)}
             />
         )}
@@ -346,8 +471,14 @@ export default function P2pMarketplacePage() {
                 </div>
                 <form onSubmit={handleEditOffer} className="mt-4 space-y-4">
                   <div>
-                    <label className="text-xs font-semibold uppercase text-muted-foreground">Amount Available ($)</label>
-                    <input type="number" value={editAmount} onChange={(e) => setEditAmount(e.target.value)} className="mt-1 h-11 w-full rounded-md border border-input bg-secondary px-3 text-sm text-foreground outline-none" required />
+                    <label className="text-xs font-semibold uppercase text-muted-foreground">Amount Available (₱)</label>
+                    <input
+                        type="text"
+                        value={formatNumberInput(editAmount)}
+                        onChange={(e) => setEditAmount(parseNumberInput(e.target.value))}
+                        className="mt-1 h-11 w-full rounded-md border border-input bg-secondary px-3 text-sm text-foreground outline-none"
+                        required
+                    />
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
@@ -379,8 +510,15 @@ export default function P2pMarketplacePage() {
                 </div>
                 <form onSubmit={handleCreateOffer} className="mt-4 space-y-4">
                   <div>
-                    <label className="text-xs font-semibold uppercase text-muted-foreground">Amount Available ($)</label>
-                    <input type="number" value={amountAvailable} onChange={(e) => setAmountAvailable(e.target.value)} placeholder="1000" className="mt-1 h-11 w-full rounded-md border border-input bg-secondary px-3 text-sm text-foreground outline-none" required />
+                    <label className="text-xs font-semibold uppercase text-muted-foreground">Amount Available (₱)</label>
+                    <input
+                        type="text"
+                        value={formatNumberInput(amountAvailable)}
+                        onChange={(e) => setAmountAvailable(parseNumberInput(e.target.value))}
+                        placeholder="1,000"
+                        className="mt-1 h-11 w-full rounded-md border border-input bg-secondary px-3 text-sm text-foreground outline-none"
+                        required
+                    />
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
@@ -404,30 +542,18 @@ export default function P2pMarketplacePage() {
 
         {/* Apply Modal */}
         {showApplyModal && selectedOffer && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-              <div className="w-full max-w-md rounded-2xl bg-card p-6 shadow-xl">
-                <div className="flex items-start justify-between">
-                  <h2 className="text-xl font-bold text-foreground">Apply to Lender Offer</h2>
-                  <button onClick={() => setShowApplyModal(false)} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
-                </div>
-                <div className="mt-3 space-y-1 text-sm text-muted-foreground">
-                  <p>Lender: <span className="font-semibold text-foreground">{selectedOffer.lender?.first_name} {selectedOffer.lender?.last_name}</span></p>
-                  <p>Terms: <span className="font-semibold text-foreground">{selectedOffer.interest_rate}% APR for {selectedOffer.term_months} months</span></p>
-                  <p>Max Available: <span className="font-semibold text-foreground">{formatCurrency(selectedOffer.amount_available)}</span></p>
-                </div>
-                <form onSubmit={handleApply} className="mt-4 space-y-4">
-                  <div>
-                    <label className="text-xs font-semibold uppercase text-muted-foreground">Amount to Borrow ($)</label>
-                    <input type="number" value={borrowAmount} onChange={(e) => setBorrowAmount(e.target.value)} placeholder="200" className="mt-1 h-11 w-full rounded-md border border-input bg-secondary px-3 text-sm text-foreground outline-none" required />
-                  </div>
-                  {actionError && <p className="text-xs text-destructive">{actionError}</p>}
-                  <div className="flex gap-3 pt-2">
-                    <Button type="button" variant="outline" className="flex-1" onClick={() => setShowApplyModal(false)}>Cancel</Button>
-                    <Button type="submit" className="flex-1" disabled={submitting}>{submitting ? "Applying..." : "Submit Application"}</Button>
-                  </div>
-                </form>
-              </div>
-            </div>
+            <RequestLoanModal
+                offer={selectedOffer}
+                onClose={() => {
+                  setShowApplyModal(false);
+                  setSelectedOffer(null);
+                }}
+                onSuccess={() => {
+                  setShowApplyModal(false);
+                  setSelectedOffer(null);
+                  loadData();
+                }}
+            />
         )}
       </div>
   );

@@ -1,18 +1,12 @@
 import { useState } from "react";
 import { X } from "lucide-react";
-
 import { Button } from "@/components/ui/button";
 import { requestLoan, ApiError } from "@/lib/api";
+import { getToken } from "@/lib/authToken.js";
 
-// Must match the backend's FLAT_INTEREST_RATE in loan.controller.js — this
-// is duplicated here only so the estimate can update live as the user
-// drags the slider, without a round-trip to the server on every change.
-// If you ever change the backend rate, update this to match or the
-// estimate shown here will be wrong.
-const FLAT_INTEREST_RATE = 5.0;
-
+const DEFAULT_FLAT_INTEREST_RATE = 5.0;
 const MIN_AMOUNT = 500;
-const MAX_AMOUNT = 50000;
+const DEFAULT_MAX_AMOUNT = 50000;
 const TERMS = [3, 6, 12, 24];
 const CATEGORIES = ["Inventory", "Equipment", "Working Capital", "Expansion", "Emergency"];
 
@@ -24,34 +18,58 @@ function formatCurrency(amount) {
     }).format(amount);
 }
 
-export default function RequestLoanModal({ onClose, onSuccess }) {
-    const [amount, setAmount] = useState(3000);
-    const [term, setTerm] = useState(12);
+export default function RequestLoanModal({ onClose, onSuccess, offer }) {
+    const isP2p = Boolean(offer);
+    const interestRate = isP2p ? Number(offer.interest_rate) : DEFAULT_FLAT_INTEREST_RATE;
+    const maxAmount = isP2p ? Number(offer.amount_available) : DEFAULT_MAX_AMOUNT;
+
+    const [amount, setAmount] = useState(isP2p ? Math.min(3000, maxAmount) : 3000);
+    const [term, setTerm] = useState(isP2p ? Number(offer.term_months || 6) : 12);
     const [category, setCategory] = useState(CATEGORIES[0]);
     const [description, setDescription] = useState("");
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState("");
 
-    const totalInterest = amount * (FLAT_INTEREST_RATE / 100);
+    const totalInterest = amount * (interestRate / 100) * (term / 12);
     const totalRepayable = amount + totalInterest;
-    const monthlyPayment = totalRepayable / term;
+    const monthlyPayment = term > 0 ? totalRepayable / term : 0;
 
     async function handleSubmit() {
         setSubmitting(true);
         setError("");
         try {
             const purpose = description.trim() ? `${category}: ${description.trim()}` : category;
-            const res = await requestLoan({
-                principal_amount: amount,
-                term_months: term,
-                purpose,
-            });
-            onSuccess(res.loan);
+
+            if (isP2p) {
+                const res = await fetch("/api/p2p/apply", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${getToken()}`
+                    },
+                    body: JSON.stringify({
+                        offer_id: offer.id,
+                        amount: Number(amount),
+                        term_months: Number(term),
+                        purpose,
+                    }),
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || "Failed to apply to offer.");
+                onSuccess(data);
+            } else {
+                const res = await requestLoan({
+                    principal_amount: amount,
+                    term_months: term,
+                    purpose,
+                });
+                onSuccess(res.loan);
+            }
         } catch (err) {
             setError(
                 err instanceof ApiError
                     ? err.message
-                    : "Couldn't submit your application. Please try again."
+                    : err.message || "Couldn't submit your application. Please try again."
             );
         } finally {
             setSubmitting(false);
@@ -63,10 +81,14 @@ export default function RequestLoanModal({ onClose, onSuccess }) {
             <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-card p-6 shadow-xl sm:p-8">
                 <div className="flex items-start justify-between gap-4">
                     <div>
-                        <h2 className="text-2xl font-bold text-foreground">Request New Micro-Loan</h2>
+                        <h2 className="text-2xl font-bold text-foreground">
+                            {isP2p ? "Apply to Lender Offer" : "Request New Micro-Loan"}
+                        </h2>
                         <p className="mt-1 text-sm text-muted-foreground">
-                            Flexible funding for small businesses and independent artisans with fixed
-                            transparent rates.
+                            {isP2p
+                                ? `Lender: ${offer.lender?.first_name || ''} ${offer.lender?.last_name || ''} (${interestRate}% APR)`
+                                : "Flexible funding for small businesses and independent artisans with fixed transparent rates."
+                            }
                         </p>
                     </div>
                     <button
@@ -88,7 +110,7 @@ export default function RequestLoanModal({ onClose, onSuccess }) {
                     <input
                         type="range"
                         min={MIN_AMOUNT}
-                        max={MAX_AMOUNT}
+                        max={maxAmount}
                         step={100}
                         value={amount}
                         onChange={(e) => setAmount(Number(e.target.value))}
@@ -96,7 +118,7 @@ export default function RequestLoanModal({ onClose, onSuccess }) {
                     />
                     <div className="mt-1 flex justify-between text-xs text-muted-foreground">
                         <span>{formatCurrency(MIN_AMOUNT)}</span>
-                        <span>Max Available: {formatCurrency(MAX_AMOUNT)}</span>
+                        <span>Max Available: {formatCurrency(maxAmount)}</span>
                     </div>
                 </div>
 
@@ -162,12 +184,12 @@ export default function RequestLoanModal({ onClose, onSuccess }) {
                     <div className="flex justify-between">
                         <span className="text-muted-foreground">Estimated Monthly Payment:</span>
                         <span className="font-semibold text-foreground">
-              {formatCurrency(monthlyPayment)} / mo
-            </span>
+                            {formatCurrency(monthlyPayment)} / mo
+                        </span>
                     </div>
                     <div className="flex justify-between">
                         <span className="text-muted-foreground">Fixed Interest Rate (APR):</span>
-                        <span className="font-semibold text-foreground">{FLAT_INTEREST_RATE}%</span>
+                        <span className="font-semibold text-foreground">{interestRate}%</span>
                     </div>
                     <div className="flex justify-between">
                         <span className="text-muted-foreground">Total Finance Charge:</span>

@@ -13,7 +13,7 @@ import { countries } from "@/lib/countryCodes.js";
 function formatCurrency(amount) {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "USD",
+    currency: "PHP",
     maximumFractionDigits: 0,
   }).format(amount);
 }
