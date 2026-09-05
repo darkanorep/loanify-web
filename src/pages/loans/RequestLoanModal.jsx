@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { requestLoan, ApiError } from "@/lib/api";
@@ -6,7 +6,6 @@ import { getToken } from "@/lib/authToken.js";
 
 const DEFAULT_FLAT_INTEREST_RATE = 5.0;
 const MIN_AMOUNT = 500;
-const DEFAULT_MAX_AMOUNT = 50000;
 const TERMS = [3, 6, 12, 24];
 const CATEGORIES = ["Inventory", "Equipment", "Working Capital", "Expansion", "Emergency"];
 
@@ -19,11 +18,32 @@ function formatCurrency(amount) {
 }
 
 export default function RequestLoanModal({ onClose, onSuccess, offer }) {
+    const [userLimit, setUserLimit] = useState(500); // Default base limit fallback
+
+    useEffect(() => {
+        async function fetchUserProfile() {
+            try {
+                const res = await fetch("/api/profile", {
+                    headers: { Authorization: `Bearer ${getToken()}` }
+                });
+                const data = await res.json();
+                if (res.ok && data.credit_limit) {
+                    setUserLimit(Number(data.credit_limit));
+                }
+            } catch (err) {
+                console.error("Failed to fetch user credit limit", err);
+            }
+        }
+        fetchUserProfile();
+    }, []);
+
     const isP2p = Boolean(offer);
     const interestRate = isP2p ? Number(offer.interest_rate) : DEFAULT_FLAT_INTEREST_RATE;
-    const maxAmount = isP2p ? Number(offer.amount_available) : DEFAULT_MAX_AMOUNT;
 
-    const [amount, setAmount] = useState(isP2p ? Math.min(3000, maxAmount) : 3000);
+    // Max amount is capped by the user's dynamic credit limit or the lender's available offer funds
+    const maxAmount = isP2p ? Math.min(Number(offer.amount_available), userLimit) : userLimit;
+
+    const [amount, setAmount] = useState(Math.min(500, maxAmount));
     const [term, setTerm] = useState(isP2p ? Number(offer.term_months || 6) : 12);
     const [category, setCategory] = useState(CATEGORIES[0]);
     const [description, setDescription] = useState("");
@@ -50,8 +70,6 @@ export default function RequestLoanModal({ onClose, onSuccess, offer }) {
                     body: JSON.stringify({
                         offer_id: offer.id,
                         amount: Number(amount),
-                        term_months: Number(term),
-                        purpose,
                     }),
                 });
                 const data = await res.json();
@@ -101,25 +119,34 @@ export default function RequestLoanModal({ onClose, onSuccess, offer }) {
                     </button>
                 </div>
 
-                {/* Loan Amount */}
+                {/* Loan Amount & Dynamic Limit Slider */}
                 <div className="mt-6 rounded-xl bg-secondary/60 p-5">
                     <div className="flex items-center justify-between">
                         <span className="text-sm font-medium text-foreground">Loan Amount</span>
                         <span className="text-2xl font-bold text-accent">{formatCurrency(amount)}</span>
                     </div>
-                    <input
-                        type="range"
-                        min={MIN_AMOUNT}
-                        max={maxAmount}
-                        step={100}
-                        value={amount}
-                        onChange={(e) => setAmount(Number(e.target.value))}
-                        className="mt-4 w-full accent-accent"
-                    />
-                    <div className="mt-1 flex justify-between text-xs text-muted-foreground">
-                        <span>{formatCurrency(MIN_AMOUNT)}</span>
-                        <span>Max Available: {formatCurrency(maxAmount)}</span>
-                    </div>
+
+                    {maxAmount > MIN_AMOUNT ? (
+                        <>
+                            <input
+                                type="range"
+                                min={MIN_AMOUNT}
+                                max={maxAmount}
+                                step={100}
+                                value={amount}
+                                onChange={(e) => setAmount(Number(e.target.value))}
+                                className="mt-4 w-full accent-accent"
+                            />
+                            <div className="mt-1 flex justify-between text-xs text-muted-foreground">
+                                <span>{formatCurrency(MIN_AMOUNT)}</span>
+                                <span>Max Limit: {formatCurrency(maxAmount)}</span>
+                            </div>
+                        </>
+                    ) : (
+                        <p className="mt-2 text-xs text-muted-foreground">
+                            Your current credit limit is set to the minimum amount ({formatCurrency(maxAmount)}). Complete your first loan repayment successfully to scale up your limit!
+                        </p>
+                    )}
                 </div>
 
                 {/* Repayment Term */}
