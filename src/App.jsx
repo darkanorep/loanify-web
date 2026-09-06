@@ -13,6 +13,8 @@ import PaymentsPage from "./pages/payments/PaymentsPage.jsx";
 import ProfilePage from "./pages/profile/ProfilePage.jsx";
 import SupportPage from "./pages/support/SupportPage.jsx";
 import P2PMarketplacePage from "./pages/p2p/P2PMarketplacePage.jsx";
+import AdminRoute from "./pages/auth/AdminRoute.jsx";
+import AdminDashboardPage from "./pages/admin/AdminDashboardPage.jsx"; // Replace with your actual admin dashboard component path
 
 export default function App() {
     return (
@@ -39,6 +41,11 @@ export default function App() {
                     <Route path="p2p-marketplace" element={<P2PMarketplacePage />} />
                     <Route path="profile" element={<ProfilePage />} />
                     <Route path="support" element={<SupportPage />} />
+                </Route>
+
+                {/* Protected Admin Panel Route */}
+                <Route element={<AdminRoute />}>
+                    <Route path="/admin" element={<AdminDashboardPage />} />
                 </Route>
 
                 <Route path="/" element={<Navigate to="/login" replace />} />

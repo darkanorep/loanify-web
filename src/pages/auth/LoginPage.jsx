@@ -91,7 +91,18 @@ function useLoginForm() {
                 password: form.password,
             });
             setToken(res.token);
-            navigate("/dashboard");
+
+            // Save user info and route dynamically based on is_admin flag
+            if (res.user) {
+                localStorage.setItem("user", JSON.stringify(res.user));
+                if (res.user.is_admin) {
+                    navigate("/admin");
+                } else {
+                    navigate("/dashboard");
+                }
+            } else {
+                navigate("/dashboard");
+            }
         } catch (err) {
             setErrors((prev) => ({
                 ...prev,
