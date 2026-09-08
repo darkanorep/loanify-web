@@ -3,16 +3,57 @@ import AdminOverview from "../../components/admin/AdminOverview.jsx";
 import AdminBorrowerLedger from "../../components/admin/AdminBorrowerLedger.jsx";
 import AdminInspectionDrawer from "../../components/admin/AdminInspectionDrawer.jsx";
 import { getToken } from "@/lib/authToken.js";
+import { getWebSocket } from "@/lib/socket.js";
 
 export default function AdminDashboardPage() {
     const [stats, setStats] = useState(null);
     const [borrowers, setBorrowers] = useState([]);
     const [loadingRefresh, setLoadingRefresh] = useState(false);
     const [selectedUserId, setSelectedUserId] = useState(null);
+    const [toastMessage, setToastMessage] = useState(null);
 
     useEffect(() => {
         fetchBorrowers();
+        fetchStats();
+
+        const socket = getWebSocket();
+        if (socket) {
+            const handleMessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (
+                        data.type === "admin_data_updated" ||
+                        data.action === "DATABASE_SEEDED" ||
+                        data.action === "BATCH_CREDIT_QUEUED" ||
+                        data.type === "REFRESH_ALL"
+                    ) {
+                        console.log("WebSocket received refresh trigger, updating dashboard...");
+                        fetchBorrowers();
+                        fetchStats();
+                    }
+                } catch (err) {
+                    console.error("Failed to parse WebSocket event", err);
+                }
+            };
+
+            socket.addEventListener("message", handleMessage);
+            return () => socket.removeEventListener("message", handleMessage);
+        }
     }, []);
+
+    async function fetchStats() {
+        try {
+            const res = await fetch("/api/admin/stats", {
+                headers: { Authorization: `Bearer ${getToken()}` },
+            });
+            const data = await res.json();
+            if (res.ok) {
+                setStats(data);
+            }
+        } catch (err) {
+            console.error("Failed to fetch stats", err);
+        }
+    }
 
     async function fetchBorrowers() {
         try {
@@ -30,6 +71,7 @@ export default function AdminDashboardPage() {
 
     async function handleBatchCreditUpdate() {
         setLoadingRefresh(true);
+        setToastMessage(null);
         try {
             const res = await fetch("/api/admin/credit-limits/refresh", {
                 method: "POST",
@@ -40,11 +82,16 @@ export default function AdminDashboardPage() {
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error);
-            alert(data.message);
+
+            // Non-blocking toast notification instead of alert()
+            setToastMessage({ type: "success", text: data.message || "Batch credit limit recalculation job queued successfully." });
         } catch (err) {
-            alert(err.message);
+            setToastMessage({ type: "error", text: err.message });
         } finally {
-            setLoadingRefresh(false);
+            // Keep loading visual active for a smooth 2.5s progress animation duration
+            setTimeout(() => {
+                setLoadingRefresh(false);
+            }, 2500);
         }
     }
 
