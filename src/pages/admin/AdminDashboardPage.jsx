@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import AdminOverview from "../../components/admin/AdminOverview.jsx";
 import AdminBorrowerLedger from "../../components/admin/AdminBorrowerLedger.jsx";
+import AdminLiveStreamAndPortfolios from "../../components/admin/AdminLiveStreamAndPortfolios.jsx";
 import AdminInspectionDrawer from "../../components/admin/AdminInspectionDrawer.jsx";
 import { getToken } from "@/lib/authToken.js";
 import { getWebSocket } from "@/lib/socket.js";
@@ -10,7 +11,7 @@ export default function AdminDashboardPage() {
     const [borrowers, setBorrowers] = useState([]);
     const [loadingRefresh, setLoadingRefresh] = useState(false);
     const [selectedUserId, setSelectedUserId] = useState(null);
-    const [toastMessage, setToastMessage] = useState(null);
+    const [toast, setToast] = useState(null);
 
     useEffect(() => {
         fetchBorrowers();
@@ -27,7 +28,6 @@ export default function AdminDashboardPage() {
                         data.action === "BATCH_CREDIT_QUEUED" ||
                         data.type === "REFRESH_ALL"
                     ) {
-                        console.log("WebSocket received refresh trigger, updating dashboard...");
                         fetchBorrowers();
                         fetchStats();
                     }
@@ -37,7 +37,10 @@ export default function AdminDashboardPage() {
             };
 
             socket.addEventListener("message", handleMessage);
-            return () => socket.removeEventListener("message", handleMessage);
+
+            return () => {
+                socket.removeEventListener("message", handleMessage);
+            };
         }
     }, []);
 
@@ -71,7 +74,7 @@ export default function AdminDashboardPage() {
 
     async function handleBatchCreditUpdate() {
         setLoadingRefresh(true);
-        setToastMessage(null);
+        setToast(null);
         try {
             const res = await fetch("/api/admin/credit-limits/refresh", {
                 method: "POST",
@@ -82,13 +85,10 @@ export default function AdminDashboardPage() {
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error);
-
-            // Non-blocking toast notification instead of alert()
-            setToastMessage({ type: "success", text: data.message || "Batch credit limit recalculation job queued successfully." });
+            setToast({ type: "success", text: data.message || "Batch credit limit recalculation job queued successfully." });
         } catch (err) {
-            setToastMessage({ type: "error", text: err.message });
+            setToast({ type: "error", text: err.message });
         } finally {
-            // Keep loading visual active for a smooth 2.5s progress animation duration
             setTimeout(() => {
                 setLoadingRefresh(false);
             }, 2500);
@@ -108,6 +108,7 @@ export default function AdminDashboardPage() {
                 stats={stats}
                 onRefresh={handleBatchCreditUpdate}
                 loading={loadingRefresh}
+                toast={toast}
             />
 
             <AdminBorrowerLedger
@@ -119,6 +120,8 @@ export default function AdminDashboardPage() {
                 userId={selectedUserId}
                 onClose={() => setSelectedUserId(null)}
             />
+
+            <AdminLiveStreamAndPortfolios />
         </div>
     );
 }

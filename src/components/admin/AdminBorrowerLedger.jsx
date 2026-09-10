@@ -13,7 +13,6 @@ export default function AdminBorrowerLedger({ onInspect }) {
     useEffect(() => {
         fetchBorrowers(currentPage, searchQuery, kycFilter);
 
-        // Listen for live database changes via native WebSocket
         const socket = getWebSocket();
         if (socket) {
             const handleLedgerUpdate = (event) => {
@@ -21,6 +20,7 @@ export default function AdminBorrowerLedger({ onInspect }) {
                     const data = JSON.parse(event.data);
                     if (
                         data.type === "admin_data_updated" ||
+                        data.action === "DATABASE_SEEDED" ||
                         data.action === "BATCH_CREDIT_QUEUED" ||
                         data.type === "REFRESH_ALL" ||
                         data.type === "borrower_status_changed"
@@ -165,6 +165,11 @@ export default function AdminBorrowerLedger({ onInspect }) {
                         borrowers.map((user) => {
                             const initials = user.full_name ? user.full_name.split(" ").map(n => n[0]).join("").substring(0, 2).toUpperCase() : "US";
                             const tier = getCreditTierBadge(user.credit_score);
+                            const scoreVal = parseInt(user.credit_score) || 500;
+                            const scoreDiff = scoreVal - 500;
+                            const ptsText = scoreDiff > 0 ? `+${scoreDiff} pts gained` : scoreDiff < 0 ? `${scoreDiff} pts this cycle` : `Initial Score Baseline`;
+                            const ptsColor = scoreDiff > 0 ? "text-emerald-600 font-medium" : scoreDiff < 0 ? "text-rose-600 font-medium" : "text-slate-400 font-medium";
+
                             return (
                                 <tr key={user.id} className="hover:bg-slate-50/80 transition-colors group">
                                     <td className="py-4 px-6">
@@ -184,9 +189,10 @@ export default function AdminBorrowerLedger({ onInspect }) {
                                     <td className="py-4 px-4">{renderKycBadge(user.kyc_status)}</td>
                                     <td className="py-4 px-4">
                                         <div className="flex items-center gap-2">
-                                            <span className="font-black text-slate-900 tabular-nums">{user.credit_score || 500}</span>
+                                            <span className="font-black text-slate-900 tabular-nums">{scoreVal}</span>
                                             <span className={`rounded-md px-2 py-0.5 text-[11px] font-bold ${tier.bg}`}>{tier.label}</span>
                                         </div>
+                                        <div className={`text-[11px] mt-0.5 ${ptsColor}`}>{ptsText}</div>
                                     </td>
                                     <td className="py-4 px-4 font-black text-slate-900 tabular-nums">{formatPHP(user.credit_limit)}</td>
                                     <td className="py-4 px-4">
