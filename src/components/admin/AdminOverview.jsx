@@ -1,9 +1,75 @@
 import React, { useState, useEffect } from "react";
+import { getToken } from "@/lib/authToken.js";
+import { getWebSocket } from "@/lib/socket.js";
 
-export default function AdminOverview({ stats, onRefresh, loading, toast }) {
+export default function AdminOverview({ onRefresh: externalRefresh, toast }) {
+    // 1. Direct API Stats State
+    const [stats, setStats] = useState({
+        totalActiveLoans: 0,
+        activeNotesCount: 0,
+        activeLoansMoM: "+0.0% MoM",
+        totalPool: 50000000,
+        allocatedAmount: 0,
+        reserveAmount: 50000000,
+        utilizationRate: 0,
+        pendingKyc: 0,
+        defaultRate: "0.00",
+        nplAmount: 0
+    });
+
+    // 2. Interactive Engine Loading & Progress States
+    const [loading, setLoading] = useState(false);
     const [progress, setProgress] = useState(0);
     const [statusStep, setStatusStep] = useState("");
 
+    // Fetch Stats directly from the backend API
+    const fetchStats = async () => {
+        try {
+            const res = await fetch("/api/admin/stats", {
+                headers: { Authorization: `Bearer ${getToken()}` }
+            });
+            const data = await res.json();
+            if (res.ok && data) {
+                setStats({
+                    totalActiveLoans: Number(data.totalActiveLoans || 0),
+                    activeNotesCount: Number(data.activeNotesCount || 0),
+                    activeLoansMoM: data.activeLoansMoM || "+0.0% MoM",
+                    totalPool: Number(data.totalPool || 50000000),
+                    allocatedAmount: Number(data.allocatedAmount || 0),
+                    reserveAmount: data.reserveAmount !== undefined ? Number(data.reserveAmount) : 50000000,
+                    utilizationRate: Number(data.utilizationRate || 0),
+                    pendingKyc: Number(data.pendingKyc || 0),
+                    defaultRate: typeof data.defaultRate === "number" ? data.defaultRate : parseFloat(data.defaultRate || 0),
+                    nplAmount: Number(data.nplAmount || 0)
+                });
+            }
+        } catch (err) {
+            console.error("Failed to fetch dashboard statistics", err);
+        }
+    };
+
+    // Initial Fetch & WebSocket Live Subscription
+    useEffect(() => {
+        fetchStats();
+
+        const socket = getWebSocket();
+        if (socket) {
+            const handleMessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === "admin_data_updated" || data.action === "DATABASE_SEEDED" || data.action === "WALLET_TOPUP") {
+                        fetchStats();
+                    }
+                } catch (err) {
+                    console.error("WebSocket stats update error", err);
+                }
+            };
+            socket.addEventListener("message", handleMessage);
+            return () => socket.removeEventListener("message", handleMessage);
+        }
+    }, []);
+
+    // Progress bar simulation loop during recalculation
     useEffect(() => {
         let interval;
         if (loading) {
@@ -22,7 +88,7 @@ export default function AdminOverview({ stats, onRefresh, loading, toast }) {
                     return next > 95 ? 95 : next;
                 });
             }, 250);
-        } else {
+        } else if (progress > 0) {
             setProgress(100);
             setStatusStep("Recalibration complete!");
             const timeout = setTimeout(() => {
@@ -33,6 +99,7 @@ export default function AdminOverview({ stats, onRefresh, loading, toast }) {
         return () => clearInterval(interval);
     }, [loading]);
 
+    // Format utility for PHP Currency
     const formatPHP = (value) => {
         const numericValue = parseFloat(value) || 0;
         return new Intl.NumberFormat("en-PH", {
@@ -43,17 +110,34 @@ export default function AdminOverview({ stats, onRefresh, loading, toast }) {
         }).format(numericValue);
     };
 
-    const activeLoansAmount = stats?.totalActiveLoans || 0;
-    const activeNotesCount = stats?.activeNotesCount || 0;
-    const totalPool = stats?.totalPool || 50000000;
-    const pendingKyc = stats?.pendingKyc || 0;
-    const allocatedAmount = stats?.allocatedAmount || 0;
-    const reserveAmount = stats?.reserveAmount || totalPool;
-    const utilizationRate = stats?.utilizationRate || 0;
-    const defaultRate = stats?.defaultRate || 0.00;
-    const nplAmount = stats?.nplAmount || 0;
+    // Handle Algorithmic Recalibration Button Trigger
+    const handleRunEngineUpdate = async () => {
+        setLoading(true);
+        try {
+            await fetch("/api/admin/credit-limits/refresh", {
+                method: "POST",
+                headers: { Authorization: `Bearer ${getToken()}` }
+            });
+            if (externalRefresh) await externalRefresh();
+            await fetchStats();
+        } catch (err) {
+            console.error("Credit engine recalibration failed", err);
+        } finally {
+            setLoading(false);
+        }
+    };
 
-    const momText = stats?.activeLoansMoM || "+0.0% MoM";
+    // Derived Display Variables
+    const activeLoansAmount = stats.totalActiveLoans;
+    const activeNotesCount = stats.activeNotesCount;
+    const momText = stats.activeLoansMoM;
+    const totalPool = stats.totalPool;
+    const allocatedAmount = stats.allocatedAmount;
+    const reserveAmount = stats.reserveAmount;
+    const utilizationRate = stats.utilizationRate;
+    const pendingKyc = stats.pendingKyc;
+    const defaultRate = typeof stats.defaultRate === "number" ? stats.defaultRate : parseFloat(stats.defaultRate || 0);
+    const nplAmount = stats.nplAmount;
 
     return (
         <div className="space-y-6 relative">
@@ -128,7 +212,7 @@ export default function AdminOverview({ stats, onRefresh, loading, toast }) {
                         <div className="flex items-center justify-between">
                             <span className="text-[11px] uppercase tracking-wider font-semibold text-[#565e74]">Pending KYC Reviews</span>
                             <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full ${pendingKyc > 0 ? "text-[#ba1a1a] bg-[#ffdad6] animate-pulse" : "text-[#00442d] bg-[#85f8c4]/30"}`}>
-                                <span>{pendingKyc > 0 ? "High Priority" : "Clear"}</span>
+                                <span>{pendingKyc > 0 ? "Requires Action" : "Clear"}</span>
                             </span>
                         </div>
                         <div className="mt-2 flex items-baseline gap-1.5">
@@ -189,9 +273,9 @@ export default function AdminOverview({ stats, onRefresh, loading, toast }) {
                         </div>
                     </div>
                     <button
-                        onClick={onRefresh}
+                        onClick={handleRunEngineUpdate}
                         disabled={loading}
-                        className="shrink-0 rounded-xl bg-accent px-5 py-3 text-sm font-bold text-accent-foreground shadow-lg hover:bg-accent/90 hover:scale-105 active:scale-95 transition-all duration-200 disabled:opacity-50 disabled:hover:scale-100 flex items-center gap-2"
+                        className="shrink-0 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 px-5 py-3 text-sm font-bold shadow-lg transition-all duration-200 disabled:opacity-50 disabled:hover:scale-100 flex items-center gap-2 cursor-pointer"
                     >
                         <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
