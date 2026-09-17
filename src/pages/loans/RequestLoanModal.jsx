@@ -113,7 +113,7 @@ export default function RequestLoanModal({ onClose, onSuccess, offer }) {
                         type="button"
                         onClick={onClose}
                         aria-label="Close"
-                        className="shrink-0 text-muted-foreground hover:text-foreground"
+                        className="shrink-0 text-muted-foreground hover:text-foreground cursor-pointer"
                     >
                         <X className="h-5 w-5" />
                     </button>
@@ -135,7 +135,7 @@ export default function RequestLoanModal({ onClose, onSuccess, offer }) {
                                 step={100}
                                 value={amount}
                                 onChange={(e) => setAmount(Number(e.target.value))}
-                                className="mt-4 w-full accent-accent"
+                                className="mt-4 w-full accent-accent cursor-pointer"
                             />
                             <div className="mt-1 flex justify-between text-xs text-muted-foreground">
                                 <span>{formatCurrency(MIN_AMOUNT)}</span>
@@ -157,12 +157,13 @@ export default function RequestLoanModal({ onClose, onSuccess, offer }) {
                             <button
                                 key={t}
                                 type="button"
+                                disabled={isP2p}
                                 onClick={() => setTerm(t)}
                                 className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
                                     term === t
                                         ? "border-primary bg-primary text-primary-foreground"
                                         : "border-border bg-background text-foreground hover:bg-secondary"
-                                }`}
+                                } ${isP2p ? "opacity-75 cursor-not-allowed" : "cursor-pointer"}`}
                             >
                                 {t} Months
                             </button>
@@ -179,7 +180,7 @@ export default function RequestLoanModal({ onClose, onSuccess, offer }) {
                                 key={c}
                                 type="button"
                                 onClick={() => setCategory(c)}
-                                className={`rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors ${
+                                className={`rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors cursor-pointer ${
                                     category === c
                                         ? "border-accent bg-accent text-accent-foreground"
                                         : "border-border bg-background text-foreground hover:bg-secondary"
@@ -239,12 +240,12 @@ export default function RequestLoanModal({ onClose, onSuccess, offer }) {
 
                 {/* Actions */}
                 <div className="mt-6 flex gap-3">
-                    <Button type="button" variant="outline" className="flex-1" onClick={onClose}>
+                    <Button type="button" variant="outline" className="flex-1 cursor-pointer" onClick={onClose}>
                         Cancel
                     </Button>
                     <Button
                         type="button"
-                        className="flex-1 bg-accent text-accent-foreground hover:bg-accent/90"
+                        className="flex-1 bg-accent text-accent-foreground hover:bg-accent/90 cursor-pointer"
                         disabled={submitting}
                         onClick={handleSubmit}
                     >

@@ -9,7 +9,11 @@ export default function RequireAuth({ children }) {
     const token = getToken();
 
     // No token at all — fast path, no need to even ask the backend.
-    const [status, setStatus] = useState(token ? "checking" : "unauthenticated");
+    const [status, setStatus] = useState(() => {
+        const hasToken = getToken();
+        const isPaymentReturn = typeof window !== "undefined" && window.location.search.includes("status=");
+        return (hasToken || isPaymentReturn) ? "checking" : "unauthenticated";
+    });
 
     useEffect(() => {
         if (!token) return;

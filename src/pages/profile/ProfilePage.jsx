@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { ShieldCheck, Award, TrendingUp, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import ProfileWalletCard from "../profile/ProfileWalletCard.jsx";
 import {
   getProfile,
   updateProfile,
@@ -9,6 +10,7 @@ import {
   ApiError,
 } from "@/lib/api";
 import { countries } from "@/lib/countryCodes.js";
+import {getToken} from "@/lib/authToken.js";
 
 function formatCurrency(amount) {
   return new Intl.NumberFormat("en-US", {
@@ -51,6 +53,13 @@ export default function ProfilePage() {
   const [otpError, setOtpError] = useState("");
 
   function load() {
+    const token = getToken();
+    if (!token) {
+      // If no token exists in localStorage, redirect cleanly instead of crashing
+      window.location.href = "/login";
+      return;
+    }
+
     setLoading(true);
     getProfile()
         .then((res) => {
@@ -61,6 +70,7 @@ export default function ProfilePage() {
           setPhoneInput(res.phone_number || "");
         })
         .catch((err) => {
+          // If the status is 401, don't immediately wipe token unless confirmed expired
           setError(
               err instanceof ApiError ? err.message : "Couldn't load your profile.",
           );
@@ -206,10 +216,11 @@ export default function ProfilePage() {
             Borrower Profile & Credentials
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Identity verification, credit standing, and contact information.
+            Identity verification, credit standing, wallet liquidity, and contact information.
           </p>
         </div>
 
+        {/* Identity & Credit Cards */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div className="rounded-2xl border border-border bg-card p-5">
             <div className="flex items-center justify-between">
@@ -259,6 +270,10 @@ export default function ProfilePage() {
           </div>
         </div>
 
+        {/* Integrated Profile Wallet Section */}
+        <ProfileWalletCard userId={data?.id} />
+
+        {/* Contact Information Form */}
         <div className="rounded-2xl border border-border bg-card p-6">
           <div className="flex items-start justify-between gap-4">
             <div>

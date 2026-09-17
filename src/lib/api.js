@@ -4,9 +4,6 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localho
 
 /**
  * Thrown for any non-2xx API response.
- * - fieldErrors: { field_name: "message" }, snake_case keys matching your
- *   Joi schema field names — parsed out of whichever shape the backend
- *   actually returned (see parseErrorBody below).
  */
 export class ApiError extends Error {
   constructor(message, { status, fieldErrors } = {}) {
@@ -17,14 +14,6 @@ export class ApiError extends Error {
   }
 }
 
-// Your backend has been observed returning at least three different error
-// shapes depending on the failure type:
-//   1. { message: "..." }              — e.g. some general errors
-//   2. { error: "..." }                — e.g. { error: "Invalid OTP" }
-//   3. { errors: ["\"field\" reason"] } — Joi validation (422), array of
-//      strings in Joi's default `"key" message` format
-// This normalizes all three into a single { message, fieldErrors } shape
-// so the rest of the app doesn't need to know which one fired.
 function parseErrorBody(data, status) {
   if (!data) {
     return { message: `Request failed with status ${status}.`, fieldErrors: undefined };
@@ -78,7 +67,7 @@ async function request(path, options = {}) {
     try {
       data = JSON.parse(text);
     } catch {
-      // Non-JSON body — leave data as null, fall back to a generic message.
+      // Non-JSON body — leave data as null
     }
   }
 
@@ -134,9 +123,38 @@ export function resetPassword(payload) {
   });
 }
 
-export function verifySession() {
-  return request("/api/auth/me", {
+export async function verifySession() {
+  try {
+    return await request("/api/auth/me", { method: "GET" });
+  } catch (err) {
+    // Retry once if returning from PayMongo redirect
+    if (typeof window !== "undefined" && window.location.search.includes("status=")) {
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      return await request("/api/auth/me", { method: "GET" });
+    }
+    throw err;
+  }
+}
+
+// --- Wallet Endpoints ---
+
+export function getWalletOverview() {
+  return request("/api/wallet/overview", {
     method: "GET",
+  });
+}
+
+export function topupWallet(payload) {
+  return request("/api/wallet/topup", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function initiatePaymongoTopup(payload) {
+  return request("/api/wallet/paymongo-topup", {
+    method: "POST",
+    body: JSON.stringify(payload),
   });
 }
 
@@ -254,5 +272,12 @@ export function approveP2pLoan(payload) {
   return request("/api/p2p/approve", {
     method: "POST",
     body: JSON.stringify(payload),
+  });
+}
+
+export function verifyPaymongoTopup(sourceId) {
+  return request("/api/wallet/paymongo-verify", {
+    method: "POST",
+    body: JSON.stringify({ sourceId }),
   });
 }
