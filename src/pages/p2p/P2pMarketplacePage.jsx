@@ -10,7 +10,6 @@ function formatCurrency(amount) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "PHP", maximumFractionDigits: 0 }).format(amount);
 }
 
-// Helper to format numbers with commas while typing (e.g., 10,000)
 function formatNumberInput(value) {
   if (!value && value !== 0) return "";
   const raw = value.toString().replace(/,/g, "").replace(/\D/g, "");
@@ -18,7 +17,6 @@ function formatNumberInput(value) {
   return new Intl.NumberFormat("en-US").format(Number(raw));
 }
 
-// Helper to strip commas before saving/submitting
 function parseNumberInput(formattedValue) {
   if (!formattedValue) return "";
   return formattedValue.toString().replace(/,/g, "");
@@ -100,22 +98,12 @@ export default function P2pMarketplacePage() {
     try {
       const headers = { Authorization: `Bearer ${getToken()}` };
 
-      if (activeTab === "marketplace") {
+      if (activeTab === "marketplace" || activeTab === "my-offers") {
         const res = await fetch("/api/p2p/marketplace", { headers });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Failed to load marketplace.");
 
-        const currentUserIdNum = currentUserId ? Number(currentUserId) : null;
-        const sortedOffers = data.sort((a, b) => {
-          const aId = Number(a.user_id || a.lender_id || a.lender?.id);
-          const bId = Number(b.user_id || b.lender_id || b.lender?.id);
-          const aIsMine = aId === currentUserIdNum;
-          const bIsMine = bId === currentUserIdNum;
-          if (aIsMine && !bIsMine) return -1;
-          if (!aIsMine && bIsMine) return 1;
-          return 0;
-        });
-        setOffers(sortedOffers);
+        setOffers(data);
       } else if (activeTab === "incoming") {
         const res = await fetch("/api/p2p/applications", { headers });
         const data = await res.json();
@@ -216,30 +204,6 @@ export default function P2pMarketplacePage() {
     }
   }
 
-  async function handleApply(e) {
-    e.preventDefault();
-    setActionError("");
-    setSubmitting(true);
-    try {
-      const res = await fetch("/api/p2p/apply", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
-        body: JSON.stringify({ offer_id: selectedOffer.id, amount: parseFloat(parseNumberInput(borrowAmount)) }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to apply to offer.");
-
-      setShowApplyModal(false);
-      setBorrowAmount("");
-      setSelectedOffer(null);
-      loadData();
-    } catch (err) {
-      setActionError(err.message);
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
   async function handleApprove(applicationId) {
     if (!window.confirm("Are you sure you want to approve this application?")) return;
     setLoading(true);
@@ -276,6 +240,15 @@ export default function P2pMarketplacePage() {
     }
   }
 
+  // Offer Filter Calculations
+  const publicMarketplaceOffers = offers.filter(
+      (offer) => Number(offer.amount_available) > 0 && offer.status !== "CLOSED"
+  );
+
+  const myLenderOffers = offers.filter(
+      (offer) => Number(offer.user_id || offer.lender_id || offer.lender?.id) === Number(currentUserId)
+  );
+
   return (
       <div className="relative space-y-8">
         {notification && (
@@ -295,12 +268,13 @@ export default function P2pMarketplacePage() {
           <div>
             <h1 className="text-2xl font-bold text-foreground">P2P Lending</h1>
             <div className="mt-4 flex gap-4 border-b border-border pb-1">
-              <button className={`text-sm font-medium pb-2 ${activeTab === "marketplace" ? "border-b-2 border-primary text-foreground" : "text-muted-foreground hover:text-foreground"}`} onClick={() => setActiveTab("marketplace")}>Marketplace</button>
-              <button className={`text-sm font-medium pb-2 ${activeTab === "my-applications" ? "border-b-2 border-primary text-foreground" : "text-muted-foreground hover:text-foreground"}`} onClick={() => setActiveTab("my-applications")}>My Applications</button>
-              <button className={`text-sm font-medium pb-2 ${activeTab === "incoming" ? "border-b-2 border-primary text-foreground" : "text-muted-foreground hover:text-foreground"}`} onClick={() => setActiveTab("incoming")}>Incoming Applications</button>
+              <button className={`text-sm font-medium pb-2 cursor-pointer ${activeTab === "marketplace" ? "border-b-2 border-primary text-foreground" : "text-muted-foreground hover:text-foreground"}`} onClick={() => setActiveTab("marketplace")}>Marketplace ({publicMarketplaceOffers.length})</button>
+              <button className={`text-sm font-medium pb-2 cursor-pointer ${activeTab === "my-offers" ? "border-b-2 border-primary text-foreground" : "text-muted-foreground hover:text-foreground"}`} onClick={() => setActiveTab("my-offers")}>My Offers ({myLenderOffers.length})</button>
+              <button className={`text-sm font-medium pb-2 cursor-pointer ${activeTab === "my-applications" ? "border-b-2 border-primary text-foreground" : "text-muted-foreground hover:text-foreground"}`} onClick={() => setActiveTab("my-applications")}>My Applications</button>
+              <button className={`text-sm font-medium pb-2 cursor-pointer ${activeTab === "incoming" ? "border-b-2 border-primary text-foreground" : "text-muted-foreground hover:text-foreground"}`} onClick={() => setActiveTab("incoming")}>Incoming Applications</button>
             </div>
           </div>
-          <Button onClick={() => setShowCreateModal(true)} className="flex items-center gap-2">
+          <Button onClick={() => setShowCreateModal(true)} className="flex items-center gap-2 cursor-pointer">
             <PlusCircle className="h-4 w-4" /> Create Lending Offer
           </Button>
         </div>
@@ -311,18 +285,17 @@ export default function P2pMarketplacePage() {
             <p className="text-sm text-muted-foreground">Loading...</p>
         ) : activeTab === "marketplace" ? (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {offers.length === 0 && <p className="text-sm text-muted-foreground col-span-full">No active offers available right now.</p>}
-              {offers.map((offer) => {
+              {publicMarketplaceOffers.length === 0 && <p className="text-sm text-muted-foreground col-span-full">No active offers available right now.</p>}
+              {publicMarketplaceOffers.map((offer) => {
                 const lenderId = Number(offer.user_id || offer.lender_id || offer.lender?.id);
                 const isMyOffer = lenderId === Number(currentUserId);
-                const hasActiveApps = offer.applications && offer.applications.some(app => ['PENDING', 'APPROVED', 'ACTIVE'].includes(app.status));
 
                 return (
                     <div key={offer.id} className="rounded-2xl border border-border bg-card p-5 flex flex-col justify-between">
                       <div>
-                  <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Lender: {isMyOffer ? "You" : `${offer.lender?.first_name} ${offer.lender?.last_name?.[0]}.`}
-                  </span>
+                        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          Lender: {isMyOffer ? "You" : `${offer.lender?.first_name} ${offer.lender?.last_name?.[0]}.`}
+                        </span>
                         <p className="mt-3 text-2xl font-bold text-foreground">{formatCurrency(offer.amount_available)} <span className="text-xs font-normal text-muted-foreground">Available</span></p>
                         <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
                           <div className="rounded-md bg-secondary/50 p-2"><span className="text-muted-foreground block">Interest Rate</span><span className="font-semibold text-foreground">{offer.interest_rate}% APR</span></div>
@@ -332,40 +305,13 @@ export default function P2pMarketplacePage() {
 
                       <div className="mt-6 space-y-2">
                         {!isMyOffer && (
-                            <Button className="w-full flex items-center gap-2" size="sm" onClick={() => { setSelectedOffer(offer); setShowApplyModal(true); }}>
+                            <Button className="w-full flex items-center gap-2 cursor-pointer" size="sm" onClick={() => { setSelectedOffer(offer); setShowApplyModal(true); }}>
                               <Send className="h-4 w-4" /> Apply for Loan
                             </Button>
                         )}
 
-                        {isMyOffer ? (
-                            <div className="flex flex-col gap-2">
-                              <Button
-                                  variant="outline"
-                                  className={`w-full flex items-center justify-center gap-2 ${hasActiveApps ? "opacity-50 cursor-not-allowed bg-secondary/30" : ""}`}
-                                  size="sm"
-                                  disabled={hasActiveApps}
-                                  onClick={() => {
-                                    setSelectedOffer(offer);
-                                    setEditAmount(offer.amount_available);
-                                    setEditInterest(offer.interest_rate);
-                                    setEditTerm(offer.term_months);
-                                    setShowEditModal(true);
-                                  }}
-                              >
-                                <Edit3 className={`h-4 w-4 ${hasActiveApps ? "text-muted-foreground" : "text-accent"}`} /> Edit Offer
-                              </Button>
-                              <Button
-                                  variant="outline"
-                                  className={`w-full flex items-center justify-center gap-2 ${hasActiveApps ? "opacity-50 cursor-not-allowed text-muted-foreground bg-secondary/30" : "text-destructive hover:bg-destructive/10"}`}
-                                  size="sm"
-                                  disabled={hasActiveApps}
-                                  onClick={() => handleDeleteOffer(offer.id)}
-                              >
-                                Delete Offer
-                              </Button>
-                            </div>
-                        ) : (
-                            <Button variant="outline" className="w-full flex items-center gap-2" size="sm" onClick={() => setActiveChat({
+                        {!isMyOffer && (
+                            <Button variant="outline" className="w-full flex items-center gap-2 cursor-pointer" size="sm" onClick={() => setActiveChat({
                               id: lenderId,
                               name: offer.lender ? `${offer.lender.first_name} ${offer.lender.last_name}` : "Lender",
                               loanDetails: { amount: offer.amount_available, interest: offer.interest_rate, term: offer.term_months }
@@ -373,6 +319,61 @@ export default function P2pMarketplacePage() {
                               <MessageSquare className="h-4 w-4 text-accent" /> Chat with Lender
                             </Button>
                         )}
+                      </div>
+                    </div>
+                );
+              })}
+            </div>
+        ) : activeTab === "my-offers" ? (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {myLenderOffers.length === 0 && <p className="text-sm text-muted-foreground col-span-full">You have not created any lending offers yet.</p>}
+              {myLenderOffers.map((offer) => {
+                const isClosed = offer.status === "CLOSED" || Number(offer.amount_available) <= 0;
+                const hasActiveApps = offer.applications && offer.applications.some(app => ['PENDING', 'APPROVED', 'ACTIVE'].includes(app.status));
+
+                return (
+                    <div key={offer.id} className="rounded-2xl border border-border bg-card p-5 flex flex-col justify-between">
+                      <div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Lender: You</span>
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                              isClosed ? "bg-secondary text-muted-foreground" : "bg-emerald-100 text-emerald-700"
+                          }`}>
+                            {isClosed ? "Closed / Fulfilled" : "Active"}
+                          </span>
+                        </div>
+                        <p className="mt-3 text-2xl font-bold text-foreground">{formatCurrency(offer.amount_available)} <span className="text-xs font-normal text-muted-foreground">Available</span></p>
+                        <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+                          <div className="rounded-md bg-secondary/50 p-2"><span className="text-muted-foreground block">Interest Rate</span><span className="font-semibold text-foreground">{offer.interest_rate}% APR</span></div>
+                          <div className="rounded-md bg-secondary/50 p-2"><span className="text-muted-foreground block">Term</span><span className="font-semibold text-foreground">{offer.term_months} Months</span></div>
+                        </div>
+                      </div>
+
+                      <div className="mt-6 flex flex-col gap-2">
+                        <Button
+                            variant="outline"
+                            className={`w-full flex items-center justify-center gap-2 cursor-pointer ${hasActiveApps || isClosed ? "opacity-50 cursor-not-allowed bg-secondary/30" : ""}`}
+                            size="sm"
+                            disabled={hasActiveApps || isClosed}
+                            onClick={() => {
+                              setSelectedOffer(offer);
+                              setEditAmount(offer.amount_available);
+                              setEditInterest(offer.interest_rate);
+                              setEditTerm(offer.term_months);
+                              setShowEditModal(true);
+                            }}
+                        >
+                          <Edit3 className={`h-4 w-4 ${hasActiveApps || isClosed ? "text-muted-foreground" : "text-accent"}`} /> Edit Offer
+                        </Button>
+                        <Button
+                            variant="outline"
+                            className={`w-full flex items-center justify-center gap-2 cursor-pointer ${hasActiveApps ? "opacity-50 cursor-not-allowed text-muted-foreground bg-secondary/30" : "text-destructive hover:bg-destructive/10"}`}
+                            size="sm"
+                            disabled={hasActiveApps}
+                            onClick={() => handleDeleteOffer(offer.id)}
+                        >
+                          Delete Offer
+                        </Button>
                       </div>
                     </div>
                 );

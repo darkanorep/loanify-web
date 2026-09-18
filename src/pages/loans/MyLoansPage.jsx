@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
-import { Plus, FileText } from "lucide-react";
+import { Plus, FileText, RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { getMyLoans, getPaymentsSummary, approveLoan as approveLoanRequest, ApiError } from "@/lib/api";
+import { getWebSocket } from "@/lib/socket.js";
 import RequestLoanModal from "./RequestLoanModal.jsx";
 import MakePaymentModal from "../payments/MakePaymentModal.jsx";
+import LoanScheduleModal from "./LoanScheduleModal.jsx"; // <--- Import Modal
 
 function formatCurrency(amount) {
     return new Intl.NumberFormat("en-US", {
@@ -21,9 +23,6 @@ function formatDate(dateString) {
     });
 }
 
-// Cosmetic loan code (e.g. "LN-000042") derived from the numeric id — this
-// app doesn't store a real loan-code/category field, so this is a
-// simplification, not the "-EQ"/"-INV" category suffixes from the mockup.
 function loanCode(id) {
     return `LN-${String(id).padStart(6, "0")}`;
 }
@@ -41,8 +40,8 @@ function StatusBadge({ status }) {
     const style = STATUS_BADGE[status] || STATUS_BADGE.PENDING;
     return (
         <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${style.className}`}>
-      {style.label}
-    </span>
+            {style.label}
+        </span>
     );
 }
 
@@ -52,15 +51,20 @@ const TABS = [
     { key: "completed", label: "Completed", match: (loan) => loan.status === "COMPLETED" },
 ];
 
-function LoanCard({ loan, onApprove, approving, onMakePayment }) {
-    const totalRepayable = Number(loan.total_repayable);
-    const totalPaid = Number(loan.total_paid);
-    const outstanding = Number(loan.outstanding_balance);
-    const percentPaid = totalRepayable > 0 ? Math.round((totalPaid / totalRepayable) * 100) : 0;
-    const nextInstallment = loan.installments?.[0];
+function LoanCard({ loan, onApprove, approving, onMakePayment, onViewSchedule }) {
+    const totalRepayable = Number(loan.total_repayable || 0);
+    const totalPaid = Number(loan.total_paid || 0);
+    const outstanding = Number(loan.outstanding_balance || 0);
+    const principal = Number(loan.principal_amount || 0);
+
+    const baseAmount = totalRepayable > 0 ? totalRepayable : principal;
+    const percentPaid = baseAmount > 0 ? Math.min(100, Math.round((totalPaid / baseAmount) * 100)) : 0;
+
+    const pendingInstallments = loan.installments?.filter(i => i.status === "PENDING" || i.status === "PARTIALLY_PAID") || [];
+    const nextInstallment = pendingInstallments[0];
 
     return (
-        <div className="rounded-2xl border border-border bg-card p-6">
+        <div className="rounded-2xl border border-border bg-card p-6 shadow-xs space-y-4">
             <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-2">
                     <span className="text-xs font-medium text-muted-foreground">{loanCode(loan.id)}</span>
@@ -69,35 +73,35 @@ function LoanCard({ loan, onApprove, approving, onMakePayment }) {
                 <div className="text-right">
                     <p className="text-xs text-muted-foreground">Principal</p>
                     <p className="text-lg font-bold text-foreground">
-                        {formatCurrency(Number(loan.principal_amount))}
+                        {formatCurrency(principal)}
                     </p>
                 </div>
             </div>
 
-            <h3 className="mt-3 text-lg font-bold text-foreground">
+            <h3 className="text-lg font-bold text-foreground">
                 {loan.purpose || "General Purpose Loan"}
             </h3>
 
-            {/* Progress */}
-            <div className="mt-5">
+            {/* Smooth Animated Progress Bar */}
+            <div className="space-y-1.5">
                 <div className="flex items-center justify-between text-sm">
                     <span className="font-medium text-foreground">Repayment Progress</span>
                     <span className="font-semibold text-accent">{percentPaid}% Paid</span>
                 </div>
-                <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-secondary">
+                <div className="h-2.5 w-full overflow-hidden rounded-full bg-secondary p-0.5">
                     <div
-                        className="h-full rounded-full bg-accent transition-all"
+                        className="h-full rounded-full bg-accent transition-all duration-700 ease-out shadow-xs"
                         style={{ width: `${Math.min(percentPaid, 100)}%` }}
                     />
                 </div>
-                <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span>{formatCurrency(totalPaid)} paid</span>
                     <span>{formatCurrency(outstanding)} remaining</span>
                 </div>
             </div>
 
-            {/* Info row */}
-            <div className="mt-4 grid grid-cols-3 gap-3 rounded-xl bg-secondary/60 p-4">
+            {/* Info Grid */}
+            <div className="grid grid-cols-3 gap-3 rounded-xl bg-secondary/60 p-4">
                 <div>
                     <p className="text-xs text-muted-foreground">Monthly Due</p>
                     <p className="mt-0.5 text-sm font-semibold text-foreground">
@@ -120,7 +124,7 @@ function LoanCard({ loan, onApprove, approving, onMakePayment }) {
 
             {/* Actions */}
             {loan.status === "PENDING" ? (
-                <div className="mt-4 space-y-2">
+                <div className="space-y-2 pt-1">
                     <Button
                         type="button"
                         className="w-full"
@@ -134,11 +138,11 @@ function LoanCard({ loan, onApprove, approving, onMakePayment }) {
                     </p>
                 </div>
             ) : (
-                <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                <div className="flex flex-col gap-2 sm:flex-row pt-1">
                     <Button
                         type="button"
-                        className="flex-1 bg-accent text-accent-foreground hover:bg-accent/90"
-                        disabled={loan.status !== "ACTIVE"}
+                        className="flex-1 bg-accent text-accent-foreground hover:bg-accent/90 cursor-pointer"
+                        disabled={loan.status !== "ACTIVE" || outstanding <= 0}
                         onClick={() => onMakePayment(loan.id)}
                     >
                         Make Payment
@@ -146,8 +150,8 @@ function LoanCard({ loan, onApprove, approving, onMakePayment }) {
                     <Button
                         type="button"
                         variant="outline"
-                        className="flex-1 gap-2"
-                        onClick={() => alert("Schedule & Agreement view isn't built yet — placeholder for now.")}
+                        className="flex-1 gap-2 cursor-pointer"
+                        onClick={() => onViewSchedule(loan)}
                     >
                         <FileText className="h-4 w-4" />
                         Schedule & Agreement
@@ -166,42 +170,70 @@ export default function MyLoansPage() {
     const [approvingId, setApprovingId] = useState(null);
     const [showRequestModal, setShowRequestModal] = useState(false);
 
-    // Payment methods are fetched separately (and non-blockingly) from the
-    // main loans list — the Make Payment modal needs them, but this page's
-    // core job is showing loans, so a failure here shouldn't take the whole
-    // page down. See MakePaymentModal usage below.
     const [paymentMethods, setPaymentMethods] = useState([]);
     const [paymentMethodsError, setPaymentMethodsError] = useState("");
-
-    // Which loan (if any) the payment modal is currently open for. Storing
-    // the id (not the loan object) keeps a single source of truth — the
-    // modal always reads the live loan from `loans` via preselectedLoanId.
     const [payingLoanId, setPayingLoanId] = useState(null);
 
-    useEffect(() => {
-        getMyLoans()
-            .then((res) => setLoans(res.loans))
-            .catch((err) => {
-                setError(err instanceof ApiError ? err.message : "Couldn't load your loans.");
-            })
-            .finally(() => setLoading(false));
-    }, []);
+    // Active Schedule Modal State
+    const [selectedScheduleLoan, setSelectedScheduleLoan] = useState(null);
+
+    const fetchLoansList = async () => {
+        try {
+            const res = await getMyLoans();
+            setLoans(res.loans || []);
+        } catch (err) {
+            setError(err instanceof ApiError ? err.message : "Couldn't load your loans.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const fetchAccounts = async () => {
+        try {
+            const res = await getPaymentsSummary();
+            setPaymentMethods(res.payment_methods ?? []);
+        } catch (err) {
+            setPaymentMethodsError(
+                err instanceof ApiError ? err.message : "Couldn't load your payment accounts."
+            );
+        }
+    };
 
     useEffect(() => {
-        getPaymentsSummary()
-            .then((res) => setPaymentMethods(res.payment_methods ?? []))
-            .catch((err) => {
-                setPaymentMethodsError(
-                    err instanceof ApiError ? err.message : "Couldn't load your payment accounts."
-                );
-            });
+        fetchLoansList();
+        fetchAccounts();
+
+        // WebSocket Real-Time Auto-Refresh Listener
+        const socket = getWebSocket();
+        if (socket) {
+            const handleMessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (
+                        data.type === "repayment_received" ||
+                        data.type === "loan_approved" ||
+                        data.type === "admin_data_updated" ||
+                        data.type === "marketplace_update"
+                    ) {
+                        fetchLoansList();
+                    }
+                } catch (err) {
+                    console.error("WebSocket parse error:", err);
+                }
+            };
+            socket.addEventListener("message", handleMessage);
+            return () => socket.removeEventListener("message", handleMessage);
+        }
     }, []);
 
     async function handleApprove(loanId) {
         setApprovingId(loanId);
         try {
             const res = await approveLoanRequest(loanId);
-            setLoans((prev) => prev.map((l) => (l.id === loanId ? res.loan : l)));
+            if (res?.loan) {
+                setLoans((prev) => prev.map((l) => (l.id === loanId ? res.loan : l)));
+            }
+            await fetchLoansList();
         } catch (err) {
             alert(err instanceof ApiError ? err.message : "Approval failed.");
         } finally {
@@ -221,18 +253,17 @@ export default function MyLoansPage() {
         setPayingLoanId(loanId);
     }
 
-    function handlePaymentSuccess(res) {
-        // makePayment() returns the updated loan (new balance, progress, next
-        // installment) — patch it into local state so the card reflects the
-        // payment immediately without a full refetch.
-        if (res?.loan) {
-            setLoans((prev) => prev.map((l) => (l.id === res.loan.id ? res.loan : l)));
-        }
+    async function handlePaymentSuccess(res) {
+        await fetchLoansList();
         setPayingLoanId(null);
     }
 
     if (loading) {
-        return <p className="text-sm text-muted-foreground">Loading your loans…</p>;
+        return (
+            <div className="flex items-center gap-2 p-6 text-sm text-muted-foreground">
+                <RefreshCw className="h-4 w-4 animate-spin" /> Loading your loans…
+            </div>
+        );
     }
 
     if (error) {
@@ -247,9 +278,6 @@ export default function MyLoansPage() {
     }
 
     const filteredLoans = loans.filter((loan) => TABS.find((t) => t.key === activeTab).match(loan));
-
-    // Only ACTIVE loans are payable — PENDING isn't approved yet, and
-    // COMPLETED/REJECTED/DEFAULTED/CANCELLED have nothing left to pay.
     const payableLoans = loans.filter((l) => l.status === "ACTIVE");
 
     return (
@@ -264,7 +292,7 @@ export default function MyLoansPage() {
                 </div>
                 <Button
                     type="button"
-                    className="gap-2 bg-accent text-accent-foreground hover:bg-accent/90"
+                    className="gap-2 bg-accent text-accent-foreground hover:bg-accent/90 cursor-pointer"
                     onClick={() => setShowRequestModal(true)}
                 >
                     <Plus className="h-4 w-4" />
@@ -278,7 +306,7 @@ export default function MyLoansPage() {
                     onSuccess={(newLoan) => {
                         setLoans((prev) => [newLoan, ...prev]);
                         setShowRequestModal(false);
-                        setActiveTab("all"); // so the new PENDING loan is visible immediately
+                        setActiveTab("all");
                     }}
                 />
             )}
@@ -293,6 +321,14 @@ export default function MyLoansPage() {
                 />
             )}
 
+            {/* Schedule & Agreement Details Modal */}
+            {selectedScheduleLoan && (
+                <LoanScheduleModal
+                    loan={selectedScheduleLoan}
+                    onClose={() => setSelectedScheduleLoan(null)}
+                />
+            )}
+
             {/* Tabs */}
             <div className="flex gap-2 border-b border-border pb-3">
                 {TABS.map((tab) => {
@@ -302,7 +338,7 @@ export default function MyLoansPage() {
                             key={tab.key}
                             type="button"
                             onClick={() => setActiveTab(tab.key)}
-                            className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+                            className={`rounded-full px-4 py-2 text-sm font-medium transition-colors cursor-pointer ${
                                 activeTab === tab.key
                                     ? "bg-primary text-primary-foreground"
                                     : "text-muted-foreground hover:text-foreground"
@@ -325,6 +361,7 @@ export default function MyLoansPage() {
                             onApprove={handleApprove}
                             approving={approvingId === loan.id}
                             onMakePayment={handleMakePayment}
+                            onViewSchedule={(loanObj) => setSelectedScheduleLoan(loanObj)}
                         />
                     ))}
                 </div>
