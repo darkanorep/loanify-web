@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { ShieldCheck, Award, TrendingUp, X } from "lucide-react";
+import { Award, TrendingUp, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import ProfileWalletCard from "../profile/ProfileWalletCard.jsx";
+import ProfileKycCard from "../profile/ProfileKycCard.jsx";
 import {
   getProfile,
   updateProfile,
@@ -10,7 +11,7 @@ import {
   ApiError,
 } from "@/lib/api";
 import { countries } from "@/lib/countryCodes.js";
-import {getToken} from "@/lib/authToken.js";
+import { getToken } from "@/lib/authToken.js";
 
 function formatCurrency(amount) {
   return new Intl.NumberFormat("en-US", {
@@ -19,13 +20,6 @@ function formatCurrency(amount) {
     maximumFractionDigits: 0,
   }).format(amount);
 }
-
-const KYC_LABELS = {
-  NOT_STARTED: { label: "Not Started", className: "text-muted-foreground" },
-  PENDING: { label: "Pending Review", className: "text-accent" },
-  VERIFIED: { label: "Verified", className: "text-accent" },
-  REJECTED: { label: "Rejected", className: "text-destructive" },
-};
 
 export default function ProfilePage() {
   const [data, setData] = useState(null);
@@ -55,7 +49,6 @@ export default function ProfilePage() {
   function load() {
     const token = getToken();
     if (!token) {
-      // If no token exists in localStorage, redirect cleanly instead of crashing
       window.location.href = "/login";
       return;
     }
@@ -64,15 +57,14 @@ export default function ProfilePage() {
     getProfile()
         .then((res) => {
           setData(res);
-          setNameInput(res.full_name);
+          setNameInput(res.full_name || "");
           setEmailInput(res.email || "");
           setPhoneCountryCode(res.phone_country_code || "+63");
           setPhoneInput(res.phone_number || "");
         })
         .catch((err) => {
-          // If the status is 401, don't immediately wipe token unless confirmed expired
           setError(
-              err instanceof ApiError ? err.message : "Couldn't load your profile.",
+              err instanceof ApiError ? err.message : "Couldn't load your profile."
           );
         })
         .finally(() => setLoading(false));
@@ -110,7 +102,7 @@ export default function ProfilePage() {
         setSaveError(
             err instanceof ApiError
                 ? err.message
-                : "Couldn't send verification code.",
+                : "Couldn't send verification code."
         );
       } finally {
         setSaving(false);
@@ -135,7 +127,7 @@ export default function ProfilePage() {
       setShowOtpModal(false);
     } catch (err) {
       setSaveError(
-          err instanceof ApiError ? err.message : "Couldn't save changes.",
+          err instanceof ApiError ? err.message : "Couldn't save changes."
       );
     } finally {
       setSaving(false);
@@ -173,7 +165,7 @@ export default function ProfilePage() {
       setOtpCode("");
     } catch (err) {
       setOtpError(
-          err instanceof ApiError ? err.message : "Invalid verification code.",
+          err instanceof ApiError ? err.message : "Invalid verification code."
       );
     } finally {
       setOtpSubmitting(false);
@@ -181,9 +173,7 @@ export default function ProfilePage() {
   }
 
   if (loading) {
-    return (
-        <p className="text-sm text-muted-foreground">Loading your profile…</p>
-    );
+    return <p className="text-sm text-muted-foreground">Loading your profile…</p>;
   }
 
   if (error) {
@@ -197,12 +187,10 @@ export default function ProfilePage() {
     );
   }
 
-  const kyc = KYC_LABELS[data.kyc_status] || KYC_LABELS.NOT_STARTED;
-
   const filteredCountries = countries.filter(
       (c) =>
           c.name.toLowerCase().includes(countrySearch.toLowerCase()) ||
-          c.callingCode.includes(countrySearch),
+          c.callingCode.includes(countrySearch)
   );
 
   const selectedCountry =
@@ -221,19 +209,12 @@ export default function ProfilePage() {
         </div>
 
         {/* Identity & Credit Cards */}
+        {/* Identity & Credit Cards */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <div className="rounded-2xl border border-border bg-card p-5">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Identity Verification (KYC)
-              </p>
-              <ShieldCheck className="h-4 w-4 text-accent" />
-            </div>
-            <p className={`mt-2 text-xl font-bold ${kyc.className}`}>
-              {kyc.label}
-            </p>
-          </div>
+          {/* Encapsulated Interactive KYC Card */}
+          <ProfileKycCard initialStatus={data?.kyc_status} />
 
+          {/* Credit Standing Card */}
           <div className="rounded-2xl border border-border bg-card p-5">
             <div className="flex items-center justify-between">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -244,8 +225,8 @@ export default function ProfilePage() {
             <p className="mt-2 text-2xl font-bold text-accent">
               {data.credit_score}{" "}
               <span className="text-sm font-medium text-foreground">
-              ({data.credit_rating})
-            </span>
+        ({data.credit_rating})
+      </span>
             </p>
             <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
               <div
@@ -257,6 +238,7 @@ export default function ProfilePage() {
             </div>
           </div>
 
+          {/* Micro-Credit Limit Card */}
           <div className="rounded-2xl border border-border bg-card p-5">
             <div className="flex items-center justify-between">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -448,7 +430,7 @@ export default function ProfilePage() {
                     disabled={saving}
                     onClick={() => {
                       setEditing(false);
-                      setNameInput(data.full_name);
+                      setNameInput(data.full_name || "");
                       setEmailInput(data.email || "");
                       setPhoneCountryCode(data.phone_country_code || "+63");
                       setPhoneInput(data.phone_number || "");
@@ -461,6 +443,7 @@ export default function ProfilePage() {
           )}
         </div>
 
+        {/* OTP Verification Modal */}
         {showOtpModal && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
               <div className="w-full max-w-md rounded-2xl bg-card p-6 shadow-xl">

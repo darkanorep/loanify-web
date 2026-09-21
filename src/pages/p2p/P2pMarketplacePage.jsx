@@ -7,7 +7,7 @@ import ChatModal from "./ChatModal.jsx";
 import RequestLoanModal from "../loans/RequestLoanModal.jsx";
 
 function formatCurrency(amount) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "PHP", maximumFractionDigits: 0 }).format(amount);
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "PHP", maximumFractionDigits: 0 }).format(amount || 0);
 }
 
 function formatNumberInput(value) {
@@ -42,6 +42,7 @@ export default function P2pMarketplacePage() {
   const [offers, setOffers] = useState([]);
   const [applications, setApplications] = useState([]);
   const [borrowerApplications, setBorrowerApplications] = useState([]);
+  const [walletBalance, setWalletBalance] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -55,7 +56,6 @@ export default function P2pMarketplacePage() {
   const [amountAvailable, setAmountAvailable] = useState("");
   const [interestRate, setInterestRate] = useState("5");
   const [termMonths, setTermMonths] = useState("6");
-  const [borrowAmount, setBorrowAmount] = useState("");
 
   const [editAmount, setEditAmount] = useState("");
   const [editInterest, setEditInterest] = useState("");
@@ -64,6 +64,7 @@ export default function P2pMarketplacePage() {
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState("");
   const [notification, setNotification] = useState(null);
+  const [confirmDirectPrompt, setConfirmDirectPrompt] = useState(null);
 
   const currentUserId = getCurrentUserId();
 
@@ -71,7 +72,10 @@ export default function P2pMarketplacePage() {
     const token = getToken();
     if (!token) return;
 
-    const ws = new WebSocket(`ws://localhost:3000?token=${token}`);
+    // Dynamically resolve protocol and host
+    const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const wsHost = window.location.hostname;
+    const ws = new WebSocket(`${wsProtocol}//${wsHost}:3000?token=${token}`);
 
     ws.onmessage = (event) => {
       try {
@@ -81,7 +85,7 @@ export default function P2pMarketplacePage() {
           loadData();
           setTimeout(() => setNotification(null), 6000);
         }
-        if (data.type === "marketplace_update") {
+        if (["marketplace_update", "p2p_application_approved", "p2p_offer_created"].includes(data.type)) {
           loadData();
         }
       } catch (err) {
@@ -89,7 +93,13 @@ export default function P2pMarketplacePage() {
       }
     };
 
-    return () => ws.close();
+    return () => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.close(1000, "Component unmounted");
+      } else if (ws.readyState === WebSocket.CONNECTING) {
+        ws.onopen = () => ws.close(1000, "Component unmounted during connection");
+      }
+    };
   }, []);
 
   async function loadData() {
@@ -97,6 +107,17 @@ export default function P2pMarketplacePage() {
     setError("");
     try {
       const headers = { Authorization: `Bearer ${getToken()}` };
+
+      // Fetch User Wallet Overview to get live available_balance
+      try {
+        const walletRes = await fetch("/api/wallet/overview", { headers });
+        if (walletRes.ok) {
+          const walletData = await walletRes.json();
+          setWalletBalance(Number(walletData.available_balance || 0));
+        }
+      } catch (wErr) {
+        console.warn("Could not load wallet overview:", wErr);
+      }
 
       if (activeTab === "marketplace" || activeTab === "my-offers") {
         const res = await fetch("/api/p2p/marketplace", { headers });
@@ -126,20 +147,47 @@ export default function P2pMarketplacePage() {
     loadData();
   }, [activeTab]);
 
-  async function handleCreateOffer(e) {
-    e.preventDefault();
+  async function handleCreateOffer(e, forceConfirm = false) {
+    if (e) e.preventDefault();
     setActionError("");
     setSubmitting(true);
     try {
+      const offerAmt = parseFloat(parseNumberInput(amountAvailable));
+      const reqBody = {
+        amount_available: offerAmt,
+        interest_rate: parseFloat(interestRate),
+        term_months: parseInt(termMonths),
+        confirm_direct_funding: forceConfirm
+      };
+
+      // If client-side check detects shortfall and hasn't confirmed yet, show confirmation dialog
+      if (!forceConfirm && offerAmt > walletBalance) {
+        const difference = offerAmt - walletBalance;
+        setConfirmDirectPrompt({
+          required_difference: difference
+        });
+        setSubmitting(false);
+        return;
+      }
+
       const res = await fetch("/api/p2p/offer", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
-        body: JSON.stringify({ amount_available: parseFloat(parseNumberInput(amountAvailable)), interest_rate: parseFloat(interestRate), term_months: parseInt(termMonths) }),
+        body: JSON.stringify(reqBody),
       });
+
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to publish offer.");
 
+      // If backend requires confirmation (e.g. no primary method check or backend calculation)
+      if (data.requires_confirmation) {
+        setConfirmDirectPrompt(data);
+        setSubmitting(false);
+        return;
+      }
+
       setShowCreateModal(false);
+      setConfirmDirectPrompt(null);
       setAmountAvailable("");
       loadData();
     } catch (err) {
@@ -274,7 +322,13 @@ export default function P2pMarketplacePage() {
               <button className={`text-sm font-medium pb-2 cursor-pointer ${activeTab === "incoming" ? "border-b-2 border-primary text-foreground" : "text-muted-foreground hover:text-foreground"}`} onClick={() => setActiveTab("incoming")}>Incoming Applications</button>
             </div>
           </div>
-          <Button onClick={() => setShowCreateModal(true)} className="flex items-center gap-2 cursor-pointer">
+          <Button
+              onClick={() => {
+                loadData();
+                setShowCreateModal(true);
+              }}
+              className="flex items-center gap-2 cursor-pointer"
+          >
             <PlusCircle className="h-4 w-4" /> Create Lending Offer
           </Button>
         </div>
@@ -329,7 +383,8 @@ export default function P2pMarketplacePage() {
               {myLenderOffers.length === 0 && <p className="text-sm text-muted-foreground col-span-full">You have not created any lending offers yet.</p>}
               {myLenderOffers.map((offer) => {
                 const isClosed = offer.status === "CLOSED" || Number(offer.amount_available) <= 0;
-                const hasActiveApps = offer.applications && offer.applications.some(app => ['PENDING', 'APPROVED', 'ACTIVE'].includes(app.status));
+                const hasActiveApps = offer.applications && offer.applications.some(app => app.status === 'PENDING');
+                // const hasActiveApps = offer.applications && offer.applications.some(app => ['PENDING', 'APPROVED', 'ACTIVE'].includes(app.status));
 
                 return (
                     <div key={offer.id} className="rounded-2xl border border-border bg-card p-5 flex flex-col justify-between">
@@ -506,37 +561,109 @@ export default function P2pMarketplacePage() {
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
               <div className="w-full max-w-md rounded-2xl bg-card p-6 shadow-xl">
                 <div className="flex items-start justify-between">
-                  <h2 className="text-xl font-bold text-foreground">Publish Lending Offer</h2>
-                  <button onClick={() => setShowCreateModal(false)} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
+                  <h2 className="text-xl font-bold text-foreground">
+                    {confirmDirectPrompt ? "Confirm Direct Funding" : "Publish Lending Offer"}
+                  </h2>
+                  <button
+                      type="button"
+                      onClick={() => {
+                        setShowCreateModal(false);
+                        setConfirmDirectPrompt(null);
+                      }}
+                      className="text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
                 </div>
-                <form onSubmit={handleCreateOffer} className="mt-4 space-y-4">
-                  <div>
-                    <label className="text-xs font-semibold uppercase text-muted-foreground">Amount Available (₱)</label>
-                    <input
-                        type="text"
-                        value={formatNumberInput(amountAvailable)}
-                        onChange={(e) => setAmountAvailable(parseNumberInput(e.target.value))}
-                        placeholder="1,000"
-                        className="mt-1 h-11 w-full rounded-md border border-input bg-secondary px-3 text-sm text-foreground outline-none"
-                        required
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-xs font-semibold uppercase text-muted-foreground">Interest Rate (%)</label>
-                      <input type="number" step="0.1" value={interestRate} onChange={(e) => setInterestRate(e.target.value)} className="mt-1 h-11 w-full rounded-md border border-input bg-secondary px-3 text-sm text-foreground outline-none" required />
+
+                {confirmDirectPrompt ? (
+                    /* Direct Funding Confirmation Prompt */
+                    <div className="mt-4 space-y-4">
+                      <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs space-y-2">
+                        <p className="font-bold text-sm">Additional Direct Funding Required</p>
+                        <p>
+                          Your wallet balance is <strong>{formatCurrency(walletBalance)}</strong>. Publishing this <strong>{formatCurrency(parseFloat(parseNumberInput(amountAvailable)))}</strong> offer requires charging an additional <strong>{formatCurrency(confirmDirectPrompt.required_difference)}</strong> from your primary linked card.
+                        </p>
+                        <p className="opacity-80">Would you like to proceed with the automatic top-up and publish this offer?</p>
+                      </div>
+
+                      {actionError && <p className="text-xs text-destructive">{actionError}</p>}
+
+                      <div className="flex gap-3 pt-2">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            className="flex-1"
+                            onClick={() => setConfirmDirectPrompt(null)}
+                        >
+                          Back
+                        </Button>
+                        <Button
+                            type="button"
+                            className="flex-1 bg-accent text-accent-foreground hover:bg-accent/90"
+                            disabled={submitting}
+                            onClick={() => handleCreateOffer(null, true)}
+                        >
+                          {submitting ? "Processing..." : "Confirm & Publish"}
+                        </Button>
+                      </div>
                     </div>
-                    <div>
-                      <label className="text-xs font-semibold uppercase text-muted-foreground">Term (Months)</label>
-                      <input type="number" value={termMonths} onChange={(e) => setTermMonths(e.target.value)} className="mt-1 h-11 w-full rounded-md border border-input bg-secondary px-3 text-sm text-foreground outline-none" required />
-                    </div>
-                  </div>
-                  {actionError && <p className="text-xs text-destructive">{actionError}</p>}
-                  <div className="flex gap-3 pt-2">
-                    <Button type="button" variant="outline" className="flex-1" onClick={() => setShowCreateModal(false)}>Cancel</Button>
-                    <Button type="submit" className="flex-1" disabled={submitting}>{submitting ? "Publishing..." : "Publish Offer"}</Button>
-                  </div>
-                </form>
+                ) : (
+                    /* Standard Offer Form */
+                    <form onSubmit={(e) => handleCreateOffer(e, false)} className="mt-4 space-y-4">
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-xs font-semibold uppercase text-muted-foreground">
+                            Amount Available (₱)
+                          </label>
+                          <div className="flex items-center gap-1.5 text-xs">
+                            <span className="text-muted-foreground">Available:</span>
+                            <span className="font-bold text-foreground">{formatCurrency(walletBalance)}</span>
+                            <button
+                                type="button"
+                                onClick={() => setAmountAvailable(walletBalance.toString())}
+                                className="ml-1 text-[10px] font-bold uppercase tracking-wider text-accent bg-accent/10 px-1.5 py-0.5 rounded hover:bg-accent/20 cursor-pointer"
+                            >
+                              Use Max
+                            </button>
+                          </div>
+                        </div>
+
+                        <input
+                            type="text"
+                            value={formatNumberInput(amountAvailable)}
+                            onChange={(e) => setAmountAvailable(parseNumberInput(e.target.value))}
+                            placeholder={walletBalance > 0 ? formatNumberInput(walletBalance) : "1,000"}
+                            className="mt-1 h-11 w-full rounded-md border border-input bg-secondary px-3 text-sm text-foreground outline-none focus:border-primary"
+                            required
+                        />
+
+                        {parseFloat(parseNumberInput(amountAvailable) || 0) > walletBalance && (
+                            <p className="mt-1.5 text-xs text-amber-600 font-medium">
+                              Note: Exceeds current available balance. Direct Funding card top-up will be required upon publishing.
+                            </p>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-xs font-semibold uppercase text-muted-foreground">Interest Rate (%)</label>
+                          <input type="number" step="0.1" value={interestRate} onChange={(e) => setInterestRate(e.target.value)} className="mt-1 h-11 w-full rounded-md border border-input bg-secondary px-3 text-sm text-foreground outline-none focus:border-primary" required />
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold uppercase text-muted-foreground">Term (Months)</label>
+                          <input type="number" value={termMonths} onChange={(e) => setTermMonths(e.target.value)} className="mt-1 h-11 w-full rounded-md border border-input bg-secondary px-3 text-sm text-foreground outline-none focus:border-primary" required />
+                        </div>
+                      </div>
+
+                      {actionError && <p className="text-xs text-destructive">{actionError}</p>}
+
+                      <div className="flex gap-3 pt-2">
+                        <Button type="button" variant="outline" className="flex-1" onClick={() => setShowCreateModal(false)}>Cancel</Button>
+                        <Button type="submit" className="flex-1" disabled={submitting}>{submitting ? "Processing..." : "Publish Offer"}</Button>
+                      </div>
+                    </form>
+                )}
               </div>
             </div>
         )}

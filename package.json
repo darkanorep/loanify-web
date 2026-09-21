@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host",
     "build": "vite build",
     "lint": "oxlint",
     "preview": "vite preview"
@@ -13,6 +13,7 @@
     "@fontsource/poppins": "^5.3.0",
     "@hugeicons/core-free-icons": "^4.2.3",
     "@hugeicons/react": "^1.1.9",
+    "@sumsub/websdk-react": "^2.9.0",
     "@tailwindcss/vite": "^4.3.3",
     "@tremor/react": "^3.18.7",
     "class-variance-authority": "^0.7.1",

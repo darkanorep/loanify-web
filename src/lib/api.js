@@ -1,6 +1,6 @@
 import { getToken } from "./authToken";
 
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 /**
  * Thrown for any non-2xx API response.
@@ -134,6 +134,20 @@ export async function verifySession() {
     }
     throw err;
   }
+}
+
+// --- KYC Endpoints ---
+
+export function getKycStatus() {
+  return request("/api/kyc/status", {
+    method: "GET",
+  });
+}
+
+export function getSumsubToken() {
+  return request("/api/kyc/sumsub-token", {
+    method: "GET",
+  });
 }
 
 // --- Wallet Endpoints ---

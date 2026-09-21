@@ -29,7 +29,11 @@ export default function NotificationBell() {
 
         const token = getToken();
         if (!token) return;
-        const ws = new WebSocket(`ws://localhost:3000?token=${token}`);
+
+        // Match host dynamically to avoid hardcoding localhost
+        const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        const wsHost = window.location.hostname;
+        const ws = new WebSocket(`${wsProtocol}//${wsHost}:3000?token=${token}`);
 
         ws.onmessage = (event) => {
             try {
@@ -55,7 +59,12 @@ export default function NotificationBell() {
         document.addEventListener("mousedown", handleClickOutside);
 
         return () => {
-            ws.close();
+            // Safely close connection without throwing unhandled state warnings
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.close(1000, "Component unmounted");
+            } else if (ws.readyState === WebSocket.CONNECTING) {
+                ws.onopen = () => ws.close(1000, "Component unmounted during connection");
+            }
             document.removeEventListener("mousedown", handleClickOutside);
         };
     }, []);
@@ -116,8 +125,8 @@ export default function NotificationBell() {
                     <Bell className="h-5 w-5" />
                     {unreadCount > 0 && (
                         <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
-              {unreadCount > 9 ? "9+" : unreadCount}
-            </span>
+                            {unreadCount > 9 ? "9+" : unreadCount}
+                        </span>
                     )}
                 </button>
 
@@ -144,11 +153,11 @@ export default function NotificationBell() {
                                             <p className="text-xs font-bold text-foreground">{notif.title}</p>
                                             <p className="text-xs text-muted-foreground">{notif.message}</p>
                                             <span className="text-[10px] text-muted-foreground/60 block">
-                        {new Date(notif.created_at || Date.now()).toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                        })}
-                      </span>
+                                                {new Date(notif.created_at || Date.now()).toLocaleTimeString([], {
+                                                    hour: "2-digit",
+                                                    minute: "2-digit",
+                                                })}
+                                            </span>
                                         </div>
                                         {!notif.is_read && (
                                             <button

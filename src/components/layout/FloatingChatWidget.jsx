@@ -32,7 +32,9 @@ export default function FloatingChatWidget() {
         const token = getToken();
         if (!token) return;
 
-        const ws = new WebSocket(`ws://localhost:3000?token=${token}`);
+        const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        const wsHost = window.location.hostname;
+        const ws = new WebSocket(`${wsProtocol}//${wsHost}:3000?token=${token}`);
 
         ws.onmessage = (event) => {
             try {
@@ -46,7 +48,13 @@ export default function FloatingChatWidget() {
             }
         };
 
-        return () => ws.close();
+        return () => {
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.close(1000, "Component unmounted");
+            } else if (ws.readyState === WebSocket.CONNECTING) {
+                ws.onopen = () => ws.close(1000, "Component unmounted during connection");
+            }
+        };
     }, []);
 
     const handleToggle = () => {

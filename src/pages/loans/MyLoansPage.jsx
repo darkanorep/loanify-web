@@ -6,16 +6,17 @@ import { getMyLoans, getPaymentsSummary, approveLoan as approveLoanRequest, ApiE
 import { getWebSocket } from "@/lib/socket.js";
 import RequestLoanModal from "./RequestLoanModal.jsx";
 import MakePaymentModal from "../payments/MakePaymentModal.jsx";
-import LoanScheduleModal from "./LoanScheduleModal.jsx"; // <--- Import Modal
+import LoanScheduleModal from "./LoanScheduleModal.jsx";
 
 function formatCurrency(amount) {
     return new Intl.NumberFormat("en-US", {
         style: "currency",
         currency: "PHP",
-    }).format(amount);
+    }).format(amount || 0);
 }
 
 function formatDate(dateString) {
+    if (!dateString) return "N/A";
     return new Date(dateString).toLocaleDateString("en-US", {
         month: "short",
         day: "numeric",
@@ -60,7 +61,7 @@ function LoanCard({ loan, onApprove, approving, onMakePayment, onViewSchedule })
     const baseAmount = totalRepayable > 0 ? totalRepayable : principal;
     const percentPaid = baseAmount > 0 ? Math.min(100, Math.round((totalPaid / baseAmount) * 100)) : 0;
 
-    const pendingInstallments = loan.installments?.filter(i => i.status === "PENDING" || i.status === "PARTIALLY_PAID") || [];
+    const pendingInstallments = loan.installments?.filter(i => i.status === "PENDING" || i.status === "PARTIALLY_PAID" || i.status === "OVERDUE") || [];
     const nextInstallment = pendingInstallments[0];
 
     return (
