@@ -65,6 +65,7 @@ export default function P2pMarketplacePage() {
   const [actionError, setActionError] = useState("");
   const [notification, setNotification] = useState(null);
   const [confirmDirectPrompt, setConfirmDirectPrompt] = useState(null);
+  const [confirmEditPrompt, setConfirmEditPrompt] = useState(null);
 
   const currentUserId = getCurrentUserId();
 
@@ -179,7 +180,7 @@ export default function P2pMarketplacePage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to publish offer.");
 
-      // If backend requires confirmation (e.g. no primary method check or backend calculation)
+      // If backend requires confirmation
       if (data.requires_confirmation) {
         setConfirmDirectPrompt(data);
         setSubmitting(false);
@@ -197,22 +198,53 @@ export default function P2pMarketplacePage() {
     }
   }
 
-  async function handleEditOffer(e) {
-    e.preventDefault();
+  async function handleEditOffer(e, forceConfirm = false) {
+    if (e) e.preventDefault();
     setActionError("");
     setSubmitting(true);
     try {
+      const newAmountVal = parseFloat(parseNumberInput(editAmount));
+      const currentOfferVal = Number(selectedOffer.amount_available || 0);
+      const amountDelta = newAmountVal - currentOfferVal;
+
+      // Check client-side shortfall if increasing offer amount
+      if (!forceConfirm && amountDelta > 0 && amountDelta > walletBalance) {
+        const difference = amountDelta - walletBalance;
+        setConfirmEditPrompt({
+          required_difference: difference
+        });
+        setSubmitting(false);
+        return;
+      }
+
+      const reqBody = {
+        amount_available: newAmountVal,
+        interest_rate: parseFloat(editInterest),
+        term_months: parseInt(editTerm),
+        confirm_direct_funding: forceConfirm
+      };
+
       const res = await fetch(`/api/p2p/offer/${selectedOffer.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
-        body: JSON.stringify({ amount_available: parseFloat(parseNumberInput(editAmount)), interest_rate: parseFloat(editInterest), term_months: parseInt(editTerm) }),
+        body: JSON.stringify(reqBody),
       });
+
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to update offer.");
 
+      if (data.requires_confirmation) {
+        setConfirmEditPrompt(data);
+        setSubmitting(false);
+        return;
+      }
+
       setShowEditModal(false);
+      setConfirmEditPrompt(null);
       setSelectedOffer(null);
-      loadData();
+
+      // Re-fetch wallet overview & marketplace offers immediately
+      await loadData();
     } catch (err) {
       setActionError(err.message);
     } finally {
@@ -384,7 +416,6 @@ export default function P2pMarketplacePage() {
               {myLenderOffers.map((offer) => {
                 const isClosed = offer.status === "CLOSED" || Number(offer.amount_available) <= 0;
                 const hasActiveApps = offer.applications && offer.applications.some(app => app.status === 'PENDING');
-                // const hasActiveApps = offer.applications && offer.applications.some(app => ['PENDING', 'APPROVED', 'ACTIVE'].includes(app.status));
 
                 return (
                     <div key={offer.id} className="rounded-2xl border border-border bg-card p-5 flex flex-col justify-between">
@@ -518,40 +549,105 @@ export default function P2pMarketplacePage() {
         )}
 
         {/* Edit Offer Modal */}
-        {showEditModal && (
+        {showEditModal && selectedOffer && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
               <div className="w-full max-w-md rounded-2xl bg-card p-6 shadow-xl">
                 <div className="flex items-start justify-between">
-                  <h2 className="text-xl font-bold text-foreground">Edit Lending Offer</h2>
-                  <button onClick={() => setShowEditModal(false)} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
+                  <h2 className="text-xl font-bold text-foreground">
+                    {confirmEditPrompt ? "Confirm Direct Funding" : "Edit Lending Offer"}
+                  </h2>
+                  <button
+                      type="button"
+                      onClick={() => {
+                        setShowEditModal(false);
+                        setConfirmEditPrompt(null);
+                      }}
+                      className="text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
                 </div>
-                <form onSubmit={handleEditOffer} className="mt-4 space-y-4">
-                  <div>
-                    <label className="text-xs font-semibold uppercase text-muted-foreground">Amount Available (₱)</label>
-                    <input
-                        type="text"
-                        value={formatNumberInput(editAmount)}
-                        onChange={(e) => setEditAmount(parseNumberInput(e.target.value))}
-                        className="mt-1 h-11 w-full rounded-md border border-input bg-secondary px-3 text-sm text-foreground outline-none"
-                        required
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-xs font-semibold uppercase text-muted-foreground">Interest Rate (%)</label>
-                      <input type="number" step="0.1" value={editInterest} onChange={(e) => setEditInterest(e.target.value)} className="mt-1 h-11 w-full rounded-md border border-input bg-secondary px-3 text-sm text-foreground outline-none" required />
+
+                {confirmEditPrompt ? (
+                    /* Direct Funding Confirmation Step */
+                    <div className="mt-4 space-y-4">
+                      <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs space-y-2">
+                        <p className="font-bold text-sm">Additional Direct Funding Required</p>
+                        <p>
+                          Your wallet balance is <strong>{formatCurrency(walletBalance)}</strong>. Increasing this offer requires an automatic card top-up of <strong>{formatCurrency(confirmEditPrompt.required_difference)}</strong>.
+                        </p>
+                        <p className="opacity-80">Would you like to proceed with the payment top-up and update your offer?</p>
+                      </div>
+
+                      {actionError && <p className="text-xs text-destructive">{actionError}</p>}
+
+                      <div className="flex gap-3 pt-2">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            className="flex-1"
+                            onClick={() => setConfirmEditPrompt(null)}
+                        >
+                          Back
+                        </Button>
+                        <Button
+                            type="button"
+                            className="flex-1 bg-accent text-accent-foreground hover:bg-accent/90 cursor-pointer"
+                            disabled={submitting}
+                            onClick={() => handleEditOffer(null, true)}
+                        >
+                          {submitting ? "Processing..." : "Confirm & Save"}
+                        </Button>
+                      </div>
                     </div>
-                    <div>
-                      <label className="text-xs font-semibold uppercase text-muted-foreground">Term (Months)</label>
-                      <input type="number" value={editTerm} onChange={(e) => setEditTerm(e.target.value)} className="mt-1 h-11 w-full rounded-md border border-input bg-secondary px-3 text-sm text-foreground outline-none" required />
-                    </div>
-                  </div>
-                  {actionError && <p className="text-xs text-destructive">{actionError}</p>}
-                  <div className="flex gap-3 pt-2">
-                    <Button type="button" variant="outline" className="flex-1" onClick={() => setShowEditModal(false)}>Cancel</Button>
-                    <Button type="submit" className="flex-1" disabled={submitting}>{submitting ? "Saving..." : "Save Changes"}</Button>
-                  </div>
-                </form>
+                ) : (
+                    /* Standard Edit Form */
+                    <form onSubmit={(e) => handleEditOffer(e, false)} className="mt-4 space-y-4">
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-xs font-semibold uppercase text-muted-foreground">
+                            Amount Available (₱)
+                          </label>
+                          <div className="flex items-center gap-1.5 text-xs">
+                            <span className="text-muted-foreground">Available:</span>
+                            <span className="font-bold text-foreground">{formatCurrency(walletBalance)}</span>
+                          </div>
+                        </div>
+
+                        <input
+                            type="text"
+                            value={formatNumberInput(editAmount)}
+                            onChange={(e) => setEditAmount(parseNumberInput(e.target.value))}
+                            className="mt-1 h-11 w-full rounded-md border border-input bg-secondary px-3 text-sm text-foreground outline-none focus:border-primary"
+                            required
+                        />
+
+                        {parseFloat(parseNumberInput(editAmount) || 0) > Number(selectedOffer.amount_available) + walletBalance && (
+                            <p className="mt-1.5 text-xs text-amber-600 font-medium">
+                              Note: Increasing offer amount beyond available balance will trigger Direct Funding top-up.
+                            </p>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-xs font-semibold uppercase text-muted-foreground">Interest Rate (%)</label>
+                          <input type="number" step="0.1" value={editInterest} onChange={(e) => setEditInterest(e.target.value)} className="mt-1 h-11 w-full rounded-md border border-input bg-secondary px-3 text-sm text-foreground outline-none focus:border-primary" required />
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold uppercase text-muted-foreground">Term (Months)</label>
+                          <input type="number" value={editTerm} onChange={(e) => setEditTerm(e.target.value)} className="mt-1 h-11 w-full rounded-md border border-input bg-secondary px-3 text-sm text-foreground outline-none focus:border-primary" required />
+                        </div>
+                      </div>
+
+                      {actionError && <p className="text-xs text-destructive">{actionError}</p>}
+
+                      <div className="flex gap-3 pt-2">
+                        <Button type="button" variant="outline" className="flex-1" onClick={() => setShowEditModal(false)}>Cancel</Button>
+                        <Button type="submit" className="flex-1 cursor-pointer" disabled={submitting}>{submitting ? "Saving..." : "Save Changes"}</Button>
+                      </div>
+                    </form>
+                )}
               </div>
             </div>
         )}
