@@ -165,7 +165,7 @@ export default function ProfileWalletCard({ userId }) {
     const getSubmitButtonColor = () => {
         if (gateway === "GCASH") return "bg-blue-600 hover:bg-blue-700";
         if (gateway === "MAYA") return "bg-emerald-600 hover:bg-emerald-700";
-        return "bg-indigo-600 hover:bg-indigo-700";
+        return "bg-[#0F2942] hover:bg-[#163a5d]";
     };
 
     return (
@@ -180,22 +180,22 @@ export default function ProfileWalletCard({ userId }) {
 
             {/* Wallet Overview Cards Grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* Available Balance */}
-                <div className="bg-gradient-to-br from-indigo-900 to-slate-900 rounded-2xl p-5 text-white shadow-xl relative overflow-hidden flex flex-col justify-between">
+                {/* Available Balance (Deep Navy Accent Card) */}
+                <div className="bg-[#0F2942] rounded-2xl p-5 text-white shadow-xl relative overflow-hidden flex flex-col justify-between">
                     <div>
                         <div className="flex items-center justify-between">
-                            <span className="text-xs font-bold text-indigo-300 uppercase tracking-wider">Available Balance</span>
-                            <WalletIcon className="h-5 w-5 text-indigo-400" />
+                            <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">Available Balance</span>
+                            <WalletIcon className="h-5 w-5 text-indigo-200" />
                         </div>
-                        <div className="text-2xl font-black mt-3 tracking-tight">
+                        <div className="text-2xl font-extrabold mt-3 tracking-tight">
                             {loading ? "..." : formatPHP(wallet?.available_balance)}
                         </div>
                     </div>
-                    <div className="mt-4 pt-3 border-t border-indigo-800/50 flex justify-between items-center">
-                        <span className="text-[11px] text-indigo-300">Ready for notes & withdrawal</span>
+                    <div className="mt-4 pt-3 border-t border-white/10 flex justify-between items-center">
+                        <span className="text-[11px] text-slate-300 font-medium">Ready for notes & withdrawal</span>
                         <button
                             onClick={() => setIsTopupOpen(true)}
-                            className="py-1.5 px-3 bg-indigo-500 hover:bg-indigo-600 text-white font-bold text-xs rounded-lg transition-colors flex items-center gap-1 shadow-sm cursor-pointer"
+                            className="py-1.5 px-3 bg.indigo-500 hover:bg-indigo-600 text-white font-bold text-xs rounded-xl transition-colors flex items-center gap-1 shadow-xs cursor-pointer"
                         >
                             <Plus className="h-3.5 w-3.5" /> Top Up
                         </button>
@@ -206,14 +206,14 @@ export default function ProfileWalletCard({ userId }) {
                 <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs flex flex-col justify-between">
                     <div>
                         <div className="flex items-center justify-between">
-                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Locked Escrow Hold</span>
+                            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Locked Escrow Hold</span>
                             <Lock className="h-5 w-5 text-amber-500" />
                         </div>
-                        <div className="text-2xl font-black text-slate-900 mt-3 tracking-tight">
+                        <div className="text-2xl font-extrabold text-[#0F2942] mt-3 tracking-tight">
                             {loading ? "..." : formatPHP(wallet?.escrow_balance)}
                         </div>
                     </div>
-                    <p className="text-[11px] text-slate-400 mt-4 pt-3 border-t border-slate-100">
+                    <p className="text-[11px] text-slate-400 font-medium mt-4 pt-3 border-t border-slate-100">
                         Committed to active P2P note allocations
                     </p>
                 </div>
@@ -222,10 +222,10 @@ export default function ProfileWalletCard({ userId }) {
                 <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs flex flex-col justify-between">
                     <div>
                         <div className="flex items-center justify-between">
-                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Combined Vault Liquidity</span>
+                            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Combined Vault Liquidity</span>
                             <RefreshCw className="h-4 w-4 text-emerald-500" />
                         </div>
-                        <div className="text-2xl font-black text-slate-900 mt-3 tracking-tight">
+                        <div className="text-2xl font-extrabold text-[#0F2942] mt-3 tracking-tight">
                             {loading ? "..." : formatPHP(Number(wallet?.available_balance || 0) + Number(wallet?.escrow_balance || 0))}
                         </div>
                     </div>
@@ -237,12 +237,12 @@ export default function ProfileWalletCard({ userId }) {
 
             {/* Top-Up Modal */}
             {isTopupOpen && (
-                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+                <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
                     <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-100">
                         <div className="flex justify-between items-center pb-3 border-b border-slate-100">
                             <div>
-                                <h3 className="text-base font-bold text-slate-900">Sandbox Payment Portal</h3>
-                                <p className="text-[11px] text-slate-400">Simulating E-Wallets & Card Open API Cash-In</p>
+                                <h3 className="text-base font-bold text-[#0F2942]">Sandbox Payment Portal</h3>
+                                <p className="text-[11px] text-slate-400 font-medium">Simulating E-Wallets & Card Open API Cash-In</p>
                             </div>
                             <button onClick={() => setIsTopupOpen(false)} className="text-slate-400 hover:text-slate-600 font-bold text-sm cursor-pointer">✕</button>
                         </div>
@@ -255,7 +255,7 @@ export default function ProfileWalletCard({ userId }) {
                                     type="button"
                                     onClick={() => setUsePayMongo(!usePayMongo)}
                                     className={`px-2.5 py-1 rounded-lg font-bold text-[10px] transition-all cursor-pointer ${
-                                        usePayMongo ? "bg-indigo-600 text-white shadow-xs" : "bg-slate-200 text-slate-600"
+                                        usePayMongo ? "bg-[#0F2942] text-white shadow-xs" : "bg-slate-200 text-slate-600"
                                     }`}
                                 >
                                     {usePayMongo ? "ON (Redirect)" : "OFF (Local Simulation)"}
@@ -264,7 +264,7 @@ export default function ProfileWalletCard({ userId }) {
 
                             {/* Payment Method Selector Grid */}
                             <div>
-                                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Select Payment Gateway</label>
+                                <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Select Payment Gateway</label>
                                 <div className="grid grid-cols-3 gap-1.5">
                                     {/* GCash Option */}
                                     <button
@@ -300,18 +300,18 @@ export default function ProfileWalletCard({ userId }) {
                                         onClick={() => setGateway("CARD")}
                                         className={`py-2 px-1.5 rounded-xl border font-bold text-[11px] transition-all flex flex-col items-center justify-center gap-1 cursor-pointer ${
                                             gateway === "CARD"
-                                                ? "bg-indigo-50 border-indigo-600 text-indigo-700 ring-1 ring-indigo-600 shadow-xs"
+                                                ? "bg-slate-100 border-[#0F2942] text-[#0F2942] ring-1 ring-[#0F2942] shadow-xs"
                                                 : "border-slate-200 text-slate-600 hover:bg-slate-50"
                                         }`}
                                     >
-                                        <CreditCard className="h-4 w-4 text-indigo-600" />
+                                        <CreditCard className="h-4 w-4 text-[#0F2942]" />
                                         <span>CARD</span>
                                     </button>
                                 </div>
                             </div>
 
                             <div>
-                                <label className="block text-xs font-semibold text-slate-600 mb-1">Top-Up Amount (PHP)</label>
+                                <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Top-Up Amount (PHP)</label>
                                 <input
                                     type="number"
                                     min="100"
@@ -319,7 +319,7 @@ export default function ProfileWalletCard({ userId }) {
                                     placeholder="Enter amount..."
                                     value={topupAmount}
                                     onChange={(e) => setTopupAmount(e.target.value)}
-                                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-[#0F2942] focus:outline-none focus:border-[#0F2942]"
                                     required
                                 />
                             </div>
@@ -331,7 +331,7 @@ export default function ProfileWalletCard({ userId }) {
                                         key={amt}
                                         type="button"
                                         onClick={() => setTopupAmount(amt.toString())}
-                                        className="flex-1 py-1 px-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-[11px] font-bold text-slate-600 transition-colors cursor-pointer"
+                                        className="flex-1 py-1 px-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-[11px] font-bold text-[#0F2942] transition-colors cursor-pointer"
                                     >
                                         +₱{amt >= 1000 ? `${amt / 1000}k` : amt}
                                     </button>
@@ -365,18 +365,18 @@ export default function ProfileWalletCard({ userId }) {
             )}
 
             {/* Wallet Transaction History Table with Per Page Select */}
-            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
-                    <h4 className="text-sm font-bold text-slate-900">Recent Wallet Activity</h4>
+            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-4">
+                    <h4 className="text-lg font-bold text-[#0F2942]">Recent Wallet Activity</h4>
 
                     {transactions.length > 0 && (
                         <div className="flex items-center gap-3">
-                            <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
+                            <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
                                 <span>Per page:</span>
                                 <select
                                     value={itemsPerPage}
                                     onChange={handleItemsPerPageChange}
-                                    className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-slate-700 font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                                    className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-[#0F2942] font-bold outline-none cursor-pointer"
                                 >
                                     <option value={5}>5</option>
                                     <option value={10}>10</option>
@@ -384,7 +384,7 @@ export default function ProfileWalletCard({ userId }) {
                                 </select>
                             </div>
 
-                            <span className="text-[11px] font-semibold text-slate-400">
+                            <span className="text-xs text-slate-400 font-medium">
                                 Showing {indexOfFirstItem + 1}-{Math.min(indexOfLastItem, transactions.length)} of {transactions.length}
                             </span>
                         </div>
@@ -392,24 +392,24 @@ export default function ProfileWalletCard({ userId }) {
                 </div>
 
                 {/* Transaction List */}
-                <div className="space-y-3">
+                <div className="space-y-2.5">
                     {currentTransactions.length > 0 ? (
                         currentTransactions.map((tx) => (
-                            <div key={tx.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100 text-xs">
+                            <div key={tx.id} className="flex items-center justify-between p-3.5 rounded-xl bg-[#faf8f5] transition-all hover:bg-slate-100/60 text-xs">
                                 <div className="flex items-center gap-3">
-                                    <div className={`p-2 rounded-lg font-bold ${
+                                    <div className={`p-2 rounded-xl font-bold ${
                                         tx.type === "TOP_UP" || tx.type === "DISBURSEMENT" || tx.type === "ESCROW_RELEASE"
                                             ? "bg-emerald-100 text-emerald-700"
-                                            : "bg-rose-100 text-rose-700"
+                                            : "bg-red-100 text-red-600"
                                     }`}>
                                         {tx.type === "TOP_UP" || tx.type === "DISBURSEMENT" ? <ArrowDownLeft className="h-4 w-4" /> : <ArrowUpRight className="h-4 w-4" />}
                                     </div>
                                     <div>
-                                        <div className="font-bold text-slate-900">{tx.description || tx.type}</div>
-                                        <div className="text-[10px] text-slate-400 font-mono">{tx.reference_no} • {new Date(tx.created_at).toLocaleDateString()}</div>
+                                        <div className="text-sm font-bold text-[#0F2942]">{tx.description || tx.type}</div>
+                                        <div className="text-[11px] text-slate-400 font-mono mt-0.5">{tx.reference_no} • {new Date(tx.created_at).toLocaleDateString()}</div>
                                     </div>
                                 </div>
-                                <div className={`font-black text-sm tabular-nums ${
+                                <div className={`text-sm font-extrabold tabular-nums ${
                                     tx.type === "TOP_UP" || tx.type === "DISBURSEMENT" || tx.type === "ESCROW_RELEASE"
                                         ? "text-emerald-600"
                                         : "text-slate-900"
@@ -419,23 +419,23 @@ export default function ProfileWalletCard({ userId }) {
                             </div>
                         ))
                     ) : (
-                        <p className="text-xs text-slate-400 py-4 text-center">No transactions recorded for this wallet yet.</p>
+                        <p className="text-xs text-slate-400 py-4 text-center font-medium">No transactions recorded for this wallet yet.</p>
                     )}
                 </div>
 
                 {/* Pagination Controls */}
                 {transactions.length > itemsPerPage && (
-                    <div className="flex items-center justify-between pt-4 mt-4 border-t border-slate-100">
+                    <div className="flex items-center justify-between pt-4 border-t border-slate-100 text-xs">
                         <button
                             type="button"
                             onClick={() => handlePageChange(currentPage - 1)}
                             disabled={currentPage === 1}
-                            className="py-1.5 px-3 rounded-lg border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors flex items-center gap-1 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                            className="py-1.5 px-3 rounded-xl border border-slate-200 font-semibold text-[#0F2942] hover:bg-slate-50 transition-colors flex items-center gap-1 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                             <ChevronLeft className="h-3.5 w-3.5" /> Previous
                         </button>
 
-                        <div className="text-xs font-bold text-slate-600">
+                        <div className="text-slate-500 font-medium">
                             Page {currentPage} of {totalPages}
                         </div>
 
@@ -443,7 +443,7 @@ export default function ProfileWalletCard({ userId }) {
                             type="button"
                             onClick={() => handlePageChange(currentPage + 1)}
                             disabled={currentPage === totalPages}
-                            className="py-1.5 px-3 rounded-lg border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors flex items-center gap-1 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                            className="py-1.5 px-3 rounded-xl border border-slate-200 font-semibold text-[#0F2942] hover:bg-slate-50 transition-colors flex items-center gap-1 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                             Next <ChevronRight className="h-3.5 w-3.5" />
                         </button>
