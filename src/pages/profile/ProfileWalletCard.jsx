@@ -4,7 +4,7 @@ import { getWalletOverview, topupWallet, initiatePaymongoTopup, ApiError, verify
 import { getWebSocket } from "@/lib/socket.js";
 import gcashIcon from "@/components/icons/gcash-icon.png";
 import mayaIcon from "@/components/icons/maya-icon.png";
-import { getToken, setToken } from "@/lib/authToken.js";
+import WithdrawModal from "./WithdrawModal.jsx";
 
 export default function ProfileWalletCard({ userId }) {
     const [wallet, setWallet] = useState(null);
@@ -13,6 +13,7 @@ export default function ProfileWalletCard({ userId }) {
     const [gateway, setGateway] = useState("GCASH");
     const [usePayMongo, setUsePayMongo] = useState(false);
     const [isTopupOpen, setIsTopupOpen] = useState(false);
+    const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [toast, setToast] = useState(null);
 
@@ -84,6 +85,8 @@ export default function ProfileWalletCard({ userId }) {
                         "width=500,height=700"
                     );
 
+                    let paymentCompleted = false;
+
                     const executeVerification = async () => {
                         try {
                             setToast({ type: "success", text: "Verifying PayMongo charge..." });
@@ -105,6 +108,7 @@ export default function ProfileWalletCard({ userId }) {
                     // Listen for message from payment-success.html
                     const handleMessage = async (event) => {
                         if (event.data === "PAYMENT_SUCCESS") {
+                            paymentCompleted = true;
                             window.removeEventListener("message", handleMessage);
                             await executeVerification();
                         }
@@ -116,7 +120,16 @@ export default function ProfileWalletCard({ userId }) {
                         if (!popup || popup.closed) {
                             clearInterval(timer);
                             window.removeEventListener("message", handleMessage);
-                            await executeVerification();
+
+                            // Only attempt verification if success message was received
+                            if (paymentCompleted) {
+                                await executeVerification();
+                            } else {
+                                setToast({
+                                    type: "error",
+                                    text: "PayMongo transaction was closed or cancelled."
+                                });
+                            }
                         }
                     }, 1000);
 
@@ -191,14 +204,30 @@ export default function ProfileWalletCard({ userId }) {
                             {loading ? "..." : formatPHP(wallet?.available_balance)}
                         </div>
                     </div>
-                    <div className="mt-4 pt-3 border-t border-white/10 flex justify-between items-center">
-                        <span className="text-[11px] text-slate-300 font-medium">Ready for notes & withdrawal</span>
-                        <button
-                            onClick={() => setIsTopupOpen(true)}
-                            className="py-1.5 px-3 bg.indigo-500 hover:bg-indigo-600 text-white font-bold text-xs rounded-xl transition-colors flex items-center gap-1 shadow-xs cursor-pointer"
-                        >
-                            <Plus className="h-3.5 w-3.5" /> Top Up
-                        </button>
+
+                    {/* Footer Container with Proper Spacing */}
+                    <div className="mt-4 pt-3 border-t border-white/10 space-y-3">
+                        <span className="text-[11px] text-slate-300 font-medium block">
+                            Ready for notes & withdrawal
+                        </span>
+
+                        {/* Buttons Row */}
+                        <div className="grid grid-cols-2 gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setIsWithdrawOpen(true)}
+                                className="py-2 px-3 bg-white/10 hover:bg-white/20 text-white font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                            >
+                                <ArrowUpRight className="h-3.5 w-3.5" /> Withdraw
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setIsTopupOpen(true)}
+                                className="py-2 px-3 bg-indigo-500 hover:bg-indigo-600 text-white font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+                            >
+                                <Plus className="h-3.5 w-3.5" /> Top Up
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -363,6 +392,17 @@ export default function ProfileWalletCard({ userId }) {
                     </div>
                 </div>
             )}
+
+            {/* Withdraw Modal */}
+            <WithdrawModal
+                isOpen={isWithdrawOpen}
+                onClose={() => setIsWithdrawOpen(false)}
+                availableBalance={wallet?.available_balance || 0}
+                onSuccess={() => {
+                    fetchOverview();
+                    setToast({ type: "success", text: "Cash out request submitted successfully!" });
+                }}
+            />
 
             {/* Wallet Transaction History Table with Per Page Select */}
             <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 space-y-4">

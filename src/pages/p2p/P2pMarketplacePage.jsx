@@ -6,6 +6,7 @@ import { getToken } from "@/lib/authToken.js";
 import ChatModal from "./ChatModal.jsx";
 import RequestLoanModal from "../loans/RequestLoanModal.jsx";
 import MyInvestments from "./MyInvestments.jsx";
+import ConfirmDialog from "../../components/common/ConfirmDialog.jsx";
 
 function formatCurrency(amount) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "PHP", maximumFractionDigits: 0 }).format(amount || 0);
@@ -54,9 +55,10 @@ export default function P2pMarketplacePage() {
 
   const [activeChat, setActiveChat] = useState(null);
 
+  // Interest & Term are default empty strings (optional / flexible)
   const [amountAvailable, setAmountAvailable] = useState("");
-  const [interestRate, setInterestRate] = useState("5");
-  const [termMonths, setTermMonths] = useState("6");
+  const [interestRate, setInterestRate] = useState("");
+  const [termMonths, setTermMonths] = useState("");
 
   const [editAmount, setEditAmount] = useState("");
   const [editInterest, setEditInterest] = useState("");
@@ -67,16 +69,25 @@ export default function P2pMarketplacePage() {
   const [confirmDirectPrompt, setConfirmDirectPrompt] = useState(null);
   const [confirmEditPrompt, setConfirmEditPrompt] = useState(null);
 
+  // Modal State for Confirmations
+  const [confirmState, setConfirmState] = useState({
+    isOpen: false,
+    title: "",
+    message: "",
+    confirmText: "Confirm",
+    variant: "primary",
+    isLoading: false,
+    onConfirm: () => {},
+  });
+
   const currentUserId = getCurrentUserId();
 
-  // Comprehensive Data Fetching for All Marketplace Entities
   async function loadData() {
     setLoading(true);
     setError("");
     try {
       const headers = { Authorization: `Bearer ${getToken()}` };
 
-      // Concurrently fetch all P2P marketplace datasets
       const [walletRes, offersRes, incomingRes, borrowerAppsRes] = await Promise.allSettled([
         fetch("/api/wallet/overview", { headers }),
         fetch("/api/p2p/marketplace", { headers }),
@@ -110,7 +121,6 @@ export default function P2pMarketplacePage() {
     }
   }
 
-  // WebSocket Listener for Real-Time Background Sync
   useEffect(() => {
     const token = getToken();
     if (!token) return;
@@ -122,7 +132,6 @@ export default function P2pMarketplacePage() {
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-
         if (
             [
               "new_application",
@@ -155,6 +164,130 @@ export default function P2pMarketplacePage() {
     loadData();
   }, [activeTab]);
 
+  const closeConfirmDialog = () => {
+    setConfirmState((prev) => ({ ...prev, isOpen: false, isLoading: false }));
+  };
+
+  function triggerDeleteOffer(offerId) {
+    setConfirmState({
+      isOpen: true,
+      title: "Delete Lending Offer",
+      message: "Are you sure you want to delete this offer? This action cannot be undone.",
+      confirmText: "Delete Offer",
+      variant: "danger",
+      isLoading: false,
+      onConfirm: () => handleDeleteOffer(offerId),
+    });
+  }
+
+  async function handleDeleteOffer(offerId) {
+    setConfirmState((prev) => ({ ...prev, isLoading: true }));
+    setError("");
+    try {
+      const res = await fetch(`/api/p2p/offer/${offerId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to delete offer.");
+      await loadData();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      closeConfirmDialog();
+    }
+  }
+
+  function triggerCancelApplication(appId) {
+    setConfirmState({
+      isOpen: true,
+      title: "Cancel Application",
+      message: "Are you sure you want to cancel this loan application?",
+      confirmText: "Cancel Application",
+      variant: "danger",
+      isLoading: false,
+      onConfirm: () => handleCancelApplication(appId),
+    });
+  }
+
+  async function handleCancelApplication(appId) {
+    setConfirmState((prev) => ({ ...prev, isLoading: true }));
+    setError("");
+    try {
+      const res = await fetch(`/api/p2p/applications/${appId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to cancel application.");
+      await loadData();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      closeConfirmDialog();
+    }
+  }
+
+  function triggerApprove(applicationId) {
+    setConfirmState({
+      isOpen: true,
+      title: "Approve Application",
+      message: "Are you sure you want to approve this loan application?",
+      confirmText: "Approve Loan",
+      variant: "primary",
+      isLoading: false,
+      onConfirm: () => handleApprove(applicationId),
+    });
+  }
+
+  async function handleApprove(applicationId) {
+    setConfirmState((prev) => ({ ...prev, isLoading: true }));
+    try {
+      const res = await fetch("/api/p2p/applications/approve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({ application_id: applicationId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to approve application.");
+      await loadData();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      closeConfirmDialog();
+    }
+  }
+
+  function triggerReject(applicationId) {
+    setConfirmState({
+      isOpen: true,
+      title: "Reject Application",
+      message: "Are you sure you want to reject this loan application?",
+      confirmText: "Reject",
+      variant: "danger",
+      isLoading: false,
+      onConfirm: () => handleReject(applicationId),
+    });
+  }
+
+  async function handleReject(applicationId) {
+    setConfirmState((prev) => ({ ...prev, isLoading: true }));
+    try {
+      const res = await fetch("/api/p2p/applications/reject", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({ application_id: applicationId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to reject application.");
+      await loadData();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      closeConfirmDialog();
+    }
+  }
+
   async function handleCreateOffer(e, forceConfirm = false) {
     if (e) e.preventDefault();
     setActionError("");
@@ -163,8 +296,8 @@ export default function P2pMarketplacePage() {
       const offerAmt = parseFloat(parseNumberInput(amountAvailable));
       const reqBody = {
         amount_available: offerAmt,
-        interest_rate: parseFloat(interestRate),
-        term_months: parseInt(termMonths),
+        interest_rate: interestRate !== "" ? parseFloat(interestRate) : null,
+        term_months: termMonths !== "" ? parseInt(termMonths, 10) : null,
         confirm_direct_funding: forceConfirm
       };
 
@@ -193,6 +326,8 @@ export default function P2pMarketplacePage() {
       setShowCreateModal(false);
       setConfirmDirectPrompt(null);
       setAmountAvailable("");
+      setInterestRate("");
+      setTermMonths("");
       loadData();
     } catch (err) {
       setActionError(err.message);
@@ -219,8 +354,8 @@ export default function P2pMarketplacePage() {
 
       const reqBody = {
         amount_available: newAmountVal,
-        interest_rate: parseFloat(editInterest),
-        term_months: parseInt(editTerm),
+        interest_rate: editInterest !== "" ? parseFloat(editInterest) : null,
+        term_months: editTerm !== "" ? parseInt(editTerm, 10) : null,
         confirm_direct_funding: forceConfirm
       };
 
@@ -250,74 +385,6 @@ export default function P2pMarketplacePage() {
     }
   }
 
-  async function handleDeleteOffer(offerId) {
-    if (!window.confirm("Are you sure you want to delete this offer?")) return;
-    setError("");
-    try {
-      const res = await fetch(`/api/p2p/offer/${offerId}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${getToken()}` },
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to delete offer.");
-      loadData();
-    } catch (err) {
-      setError(err.message);
-    }
-  }
-
-  async function handleCancelApplication(appId) {
-    if (!window.confirm("Are you sure you want to cancel this loan application?")) return;
-    setError("");
-    try {
-      const res = await fetch(`/api/p2p/applications/${appId}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${getToken()}` },
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to cancel application.");
-      loadData();
-    } catch (err) {
-      setError(err.message);
-    }
-  }
-
-  async function handleApprove(applicationId) {
-    if (!window.confirm("Are you sure you want to approve this application?")) return;
-    setLoading(true);
-    try {
-      const res = await fetch("/api/p2p/applications/approve", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
-        body: JSON.stringify({ application_id: applicationId }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to approve application.");
-      loadData();
-    } catch (err) {
-      setError(err.message);
-      setLoading(false);
-    }
-  }
-
-  async function handleReject(applicationId) {
-    if (!window.confirm("Are you sure you want to reject this application?")) return;
-    setLoading(true);
-    try {
-      const res = await fetch("/api/p2p/applications/reject", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
-        body: JSON.stringify({ application_id: applicationId }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to reject application.");
-      loadData();
-    } catch (err) {
-      setError(err.message);
-      setLoading(false);
-    }
-  }
-
   const publicMarketplaceOffers = offers.filter(
       (offer) => Number(offer.amount_available) > 0 && offer.status !== "CLOSED"
   );
@@ -330,6 +397,18 @@ export default function P2pMarketplacePage() {
 
   return (
       <div className="relative space-y-6">
+        {/* Custom Confirmation Modal */}
+        <ConfirmDialog
+            isOpen={confirmState.isOpen}
+            title={confirmState.title}
+            message={confirmState.message}
+            confirmText={confirmState.confirmText}
+            variant={confirmState.variant}
+            isLoading={confirmState.isLoading}
+            onConfirm={confirmState.onConfirm}
+            onCancel={closeConfirmDialog}
+        />
+
         {/* Header Section */}
         <div className="space-y-3 pb-2">
           <div>
@@ -447,11 +526,15 @@ export default function P2pMarketplacePage() {
                             <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
                               <div className="rounded-lg bg-[#faf8f5] p-2.5">
                                 <span className="text-slate-400 block text-[10px] uppercase font-bold">Interest Rate</span>
-                                <span className="font-bold text-[#0F2942]">{offer.interest_rate}% APR</span>
+                                <span className="font-bold text-[#0F2942]">
+                                  {offer.interest_rate != null ? `${offer.interest_rate}% APR` : "Flexible"}
+                                </span>
                               </div>
                               <div className="rounded-lg bg-[#faf8f5] p-2.5">
                                 <span className="text-slate-400 block text-[10px] uppercase font-bold">Term</span>
-                                <span className="font-bold text-[#0F2942]">{offer.term_months} Months</span>
+                                <span className="font-bold text-[#0F2942]">
+                                  {offer.term_months != null ? `${offer.term_months} Months` : "Flexible"}
+                                </span>
                               </div>
                             </div>
                           </div>
@@ -467,7 +550,11 @@ export default function P2pMarketplacePage() {
                                 <Button variant="outline" className="w-full flex items-center gap-2 rounded-xl border-slate-200 text-[#0F2942] hover:bg-slate-50 cursor-pointer" size="sm" onClick={() => setActiveChat({
                                   id: lenderId,
                                   name: offer.lender ? `${offer.lender.first_name} ${offer.lender.last_name}` : "Lender",
-                                  loanDetails: { amount: offer.amount_available, interest: offer.interest_rate, term: offer.term_months }
+                                  loanDetails: {
+                                    amount: offer.amount_available,
+                                    interest: offer.interest_rate != null ? `${offer.interest_rate}%` : "Flexible",
+                                    term: offer.term_months != null ? `${offer.term_months} Months` : "Flexible"
+                                  }
                                 })}>
                                   <MessageSquare className="h-4 w-4 text-emerald-600" /> Chat with Lender
                                 </Button>
@@ -509,11 +596,15 @@ export default function P2pMarketplacePage() {
                             <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
                               <div className="rounded-lg bg-[#faf8f5] p-2.5">
                                 <span className="text-slate-400 block text-[10px] uppercase font-bold">Interest Rate</span>
-                                <span className="font-bold text-[#0F2942]">{offer.interest_rate}% APR</span>
+                                <span className="font-bold text-[#0F2942]">
+                                  {offer.interest_rate != null ? `${offer.interest_rate}% APR` : "Flexible"}
+                                </span>
                               </div>
                               <div className="rounded-lg bg-[#faf8f5] p-2.5">
                                 <span className="text-slate-400 block text-[10px] uppercase font-bold">Term</span>
-                                <span className="font-bold text-[#0F2942]">{offer.term_months} Months</span>
+                                <span className="font-bold text-[#0F2942]">
+                                  {offer.term_months != null ? `${offer.term_months} Months` : "Flexible"}
+                                </span>
                               </div>
                             </div>
                           </div>
@@ -527,8 +618,8 @@ export default function P2pMarketplacePage() {
                                 onClick={() => {
                                   setSelectedOffer(offer);
                                   setEditAmount(offer.amount_available);
-                                  setEditInterest(offer.interest_rate);
-                                  setEditTerm(offer.term_months);
+                                  setEditInterest(offer.interest_rate != null ? offer.interest_rate.toString() : "");
+                                  setEditTerm(offer.term_months != null ? offer.term_months.toString() : "");
                                   setShowEditModal(true);
                                 }}
                             >
@@ -539,7 +630,7 @@ export default function P2pMarketplacePage() {
                                 className={`w-full flex items-center justify-center gap-2 rounded-xl cursor-pointer ${hasActiveApps ? "opacity-50 cursor-not-allowed text-slate-400 bg-slate-50" : "border-red-200 text-red-600 hover:bg-red-50"}`}
                                 size="sm"
                                 disabled={hasActiveApps}
-                                onClick={() => handleDeleteOffer(offer.id)}
+                                onClick={() => triggerDeleteOffer(offer.id)}
                             >
                               Delete Offer
                             </Button>
@@ -561,13 +652,26 @@ export default function P2pMarketplacePage() {
               ) : (
                   borrowerApplications.map((app) => {
                     const lenderId = Number(app.offer?.lender?.id || app.offer?.user_id || app.offer?.lender_id);
+
+                    const appliedTerm = app.term_months ?? app.term ?? app.offer?.term_months;
+                    const appliedRate =
+                        app.proposed_interest_rate ??
+                        app.proposed_rate ??
+                        app.proposed_apr ??
+                        app.interest_rate ??
+                        app.rate ??
+                        app.offer?.interest_rate;
+
+                    const rateDisplay = appliedRate != null && appliedRate !== "" ? `${appliedRate}% APR` : "Flexible";
+                    const termDisplay = appliedTerm != null && appliedTerm !== "" ? `${appliedTerm} Months` : "Flexible";
+
                     return (
                         <div key={app.id} className="flex items-center justify-between rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
                           <div>
                             <p className="text-sm font-bold text-[#0F2942]">Lender: {app.offer?.lender?.first_name} {app.offer?.lender?.last_name}</p>
                             <div className="mt-1 flex items-center gap-4 text-xs text-slate-500">
                               <span>Applied Amount: <strong className="text-[#0F2942]">{formatCurrency(app.amount)}</strong></span>
-                              <span>Terms: {app.offer?.interest_rate}% / {app.offer?.term_months} Months</span>
+                              <span>Terms: <strong>{rateDisplay} / {termDisplay}</strong></span>
                               <span>Status: <strong className={`uppercase ${app.status === 'PENDING' ? 'text-amber-600' : app.status === 'APPROVED' ? 'text-emerald-600' : 'text-red-600'}`}>{app.status}</strong></span>
                             </div>
                           </div>
@@ -575,12 +679,12 @@ export default function P2pMarketplacePage() {
                             <Button variant="outline" size="sm" className="rounded-xl border-slate-200 text-[#0F2942]" onClick={() => setActiveChat({
                               id: lenderId,
                               name: `${app.offer?.lender?.first_name} ${app.offer?.lender?.last_name}`,
-                              loanDetails: { amount: app.amount, interest: app.offer?.interest_rate, term: app.offer?.term_months }
+                              loanDetails: { amount: app.amount, interest: rateDisplay, term: termDisplay }
                             })}>
                               <MessageSquare className="h-4 w-4 text-emerald-600" /> Chat
                             </Button>
                             {app.status === 'PENDING' && (
-                                <Button variant="outline" size="sm" className="rounded-xl border-red-200 text-red-600 hover:bg-red-50 flex items-center gap-1.5" onClick={() => handleCancelApplication(app.id)}>
+                                <Button variant="outline" size="sm" className="rounded-xl border-red-200 text-red-600 hover:bg-red-50 flex items-center gap-1.5" onClick={() => triggerCancelApplication(app.id)}>
                                   <Trash2 className="h-4 w-4" /> Cancel Application
                                 </Button>
                             )}
@@ -602,6 +706,18 @@ export default function P2pMarketplacePage() {
               ) : (
                   applications.map((app) => {
                     const borrowerId = Number(app.borrower_id || app.borrower?.id);
+                    const appliedTerm = app.term_months ?? app.term ?? app.offer?.term_months;
+                    const appliedRate =
+                        app.proposed_interest_rate ??
+                        app.proposed_rate ??
+                        app.proposed_apr ??
+                        app.interest_rate ??
+                        app.rate ??
+                        app.offer?.interest_rate;
+
+                    const rateDisplay = appliedRate != null && appliedRate !== "" ? `${appliedRate}% APR` : "Flexible";
+                    const termDisplay = appliedTerm != null && appliedTerm !== "" ? `${appliedTerm} Months` : "Flexible";
+
                     return (
                         <div key={app.id} className="flex items-center justify-between rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
                           <div>
@@ -609,7 +725,7 @@ export default function P2pMarketplacePage() {
                             <div className="mt-1 flex items-center gap-4 text-xs text-slate-500">
                               <span className="flex items-center gap-1 font-semibold text-slate-700"><Shield className="h-3.5 w-3.5 text-emerald-600" /> Score: {app.borrower?.credit_score || "N/A"}</span>
                               <span>Requested: <strong className="text-[#0F2942]">{formatCurrency(app.amount)}</strong></span>
-                              <span>Terms: {app.offer?.interest_rate}% / {app.offer?.term_months} Months</span>
+                              <span>Terms: <strong>{rateDisplay} / {termDisplay}</strong></span>
                               <span>Status: <strong className="uppercase text-amber-600">{app.status}</strong></span>
                             </div>
                           </div>
@@ -617,16 +733,16 @@ export default function P2pMarketplacePage() {
                             <Button variant="outline" size="sm" className="rounded-xl border-slate-200 text-[#0F2942]" onClick={() => setActiveChat({
                               id: borrowerId,
                               name: app.borrower ? `${app.borrower.first_name} ${app.borrower.last_name}` : "Borrower",
-                              loanDetails: { amount: app.amount, interest: app.offer?.interest_rate, term: app.offer?.term_months }
+                              loanDetails: { amount: app.amount, interest: rateDisplay, term: termDisplay }
                             })}>
                               <MessageSquare className="h-4 w-4 text-emerald-600" /> Chat
                             </Button>
                             {app.status === 'PENDING' && (
                                 <>
-                                  <Button variant="outline" size="sm" onClick={() => handleReject(app.id)} className="rounded-xl border-red-200 text-red-600 hover:bg-red-50 flex items-center gap-1">
+                                  <Button variant="outline" size="sm" onClick={() => triggerReject(app.id)} className="rounded-xl border-red-200 text-red-600 hover:bg-red-50 flex items-center gap-1">
                                     <XCircle className="h-4 w-4" /> Reject
                                   </Button>
-                                  <Button size="sm" onClick={() => handleApprove(app.id)} className="rounded-xl bg-[#0F2942] text-white hover:bg-[#163a5d] flex items-center gap-2">
+                                  <Button size="sm" onClick={() => triggerApprove(app.id)} className="rounded-xl bg-[#0F2942] text-white hover:bg-[#163a5d] flex items-center gap-2">
                                     <CheckCircle2 className="h-4 w-4" /> Approve
                                   </Button>
                                 </>
@@ -662,7 +778,7 @@ export default function P2pMarketplacePage() {
                         setShowEditModal(false);
                         setConfirmEditPrompt(null);
                       }}
-                      className="text-slate-400 hover:text-slate-700"
+                      className="text-slate-400 hover:text-slate-700 cursor-pointer"
                   >
                     <X className="h-5 w-5" />
                   </button>
@@ -681,7 +797,7 @@ export default function P2pMarketplacePage() {
                       {actionError && <p className="text-xs text-red-600 font-medium">{actionError}</p>}
 
                       <div className="flex gap-3 pt-2">
-                        <Button type="button" variant="outline" className="flex-1 rounded-xl" onClick={() => setConfirmEditPrompt(null)}>
+                        <Button type="button" variant="outline" className="flex-1 rounded-xl cursor-pointer" onClick={() => setConfirmEditPrompt(null)}>
                           Back
                         </Button>
                         <Button
@@ -722,19 +838,41 @@ export default function P2pMarketplacePage() {
 
                       <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <label className="text-xs font-bold uppercase text-slate-500">Interest Rate (%)</label>
-                          <input type="number" step="0.1" value={editInterest} onChange={(e) => setEditInterest(e.target.value)} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-[#0F2942] outline-none focus:border-[#0F2942]" required />
+                          <label className="text-xs font-bold uppercase text-slate-500">
+                            Interest Rate (%) <span className="text-[10px] text-slate-400 font-normal">(Optional)</span>
+                          </label>
+                          <input
+                              type="number"
+                              step="0.1"
+                              placeholder="Flexible"
+                              value={editInterest}
+                              onChange={(e) => setEditInterest(e.target.value)}
+                              className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-[#0F2942] outline-none focus:border-[#0F2942]"
+                          />
                         </div>
                         <div>
-                          <label className="text-xs font-bold uppercase text-slate-500">Term (Months)</label>
-                          <input type="number" value={editTerm} onChange={(e) => setEditTerm(e.target.value)} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-[#0F2942] outline-none focus:border-[#0F2942]" required />
+                          <label className="text-xs font-bold uppercase text-slate-500">
+                            Term (Months) <span className="text-[10px] text-slate-400 font-normal">(Optional)</span>
+                          </label>
+                          <select
+                              value={editTerm}
+                              onChange={(e) => setEditTerm(e.target.value)}
+                              className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-[#0F2942] outline-none focus:border-[#0F2942] cursor-pointer"
+                          >
+                            <option value="">Flexible (Borrower Choice)</option>
+                            <option value="3">3 Months</option>
+                            <option value="6">6 Months</option>
+                            <option value="12">12 Months</option>
+                            <option value="18">18 Months</option>
+                            <option value="24">24 Months</option>
+                          </select>
                         </div>
                       </div>
 
                       {actionError && <p className="text-xs text-red-600 font-medium">{actionError}</p>}
 
                       <div className="flex gap-3 pt-2">
-                        <Button type="button" variant="outline" className="flex-1 rounded-xl" onClick={() => setShowEditModal(false)}>Cancel</Button>
+                        <Button type="button" variant="outline" className="flex-1 rounded-xl cursor-pointer" onClick={() => setShowEditModal(false)}>Cancel</Button>
                         <Button type="submit" className="flex-1 rounded-xl bg-[#0F2942] text-white hover:bg-[#163a5d] cursor-pointer" disabled={submitting}>{submitting ? "Saving..." : "Save Changes"}</Button>
                       </div>
                     </form>
@@ -757,7 +895,7 @@ export default function P2pMarketplacePage() {
                         setShowCreateModal(false);
                         setConfirmDirectPrompt(null);
                       }}
-                      className="text-slate-400 hover:text-slate-700"
+                      className="text-slate-400 hover:text-slate-700 cursor-pointer"
                   >
                     <X className="h-5 w-5" />
                   </button>
@@ -776,7 +914,7 @@ export default function P2pMarketplacePage() {
                       {actionError && <p className="text-xs text-red-600 font-medium">{actionError}</p>}
 
                       <div className="flex gap-3 pt-2">
-                        <Button type="button" variant="outline" className="flex-1 rounded-xl" onClick={() => setConfirmDirectPrompt(null)}>
+                        <Button type="button" variant="outline" className="flex-1 rounded-xl cursor-pointer" onClick={() => setConfirmDirectPrompt(null)}>
                           Back
                         </Button>
                         <Button
@@ -825,19 +963,41 @@ export default function P2pMarketplacePage() {
 
                       <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <label className="text-xs font-bold uppercase text-slate-500">Interest Rate (%)</label>
-                          <input type="number" step="0.1" value={interestRate} onChange={(e) => setInterestRate(e.target.value)} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-[#0F2942] outline-none focus:border-[#0F2942]" required />
+                          <label className="text-xs font-bold uppercase text-slate-500">
+                            Interest Rate (%) <span className="text-[10px] text-slate-400 font-normal">(Optional)</span>
+                          </label>
+                          <input
+                              type="number"
+                              step="0.1"
+                              placeholder="Flexible"
+                              value={interestRate}
+                              onChange={(e) => setInterestRate(e.target.value)}
+                              className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-[#0F2942] outline-none focus:border-[#0F2942]"
+                          />
                         </div>
                         <div>
-                          <label className="text-xs font-bold uppercase text-slate-500">Term (Months)</label>
-                          <input type="number" value={termMonths} onChange={(e) => setTermMonths(e.target.value)} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-[#0F2942] outline-none focus:border-[#0F2942]" required />
+                          <label className="text-xs font-bold uppercase text-slate-500">
+                            Term (Months) <span className="text-[10px] text-slate-400 font-normal">(Optional)</span>
+                          </label>
+                          <select
+                              value={termMonths}
+                              onChange={(e) => setTermMonths(e.target.value)}
+                              className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-[#0F2942] outline-none focus:border-[#0F2942] cursor-pointer"
+                          >
+                            <option value="">Flexible (Borrower Choice)</option>
+                            <option value="3">3 Months</option>
+                            <option value="6">6 Months</option>
+                            <option value="12">12 Months</option>
+                            <option value="18">18 Months</option>
+                            <option value="24">24 Months</option>
+                          </select>
                         </div>
                       </div>
 
                       {actionError && <p className="text-xs text-red-600 font-medium">{actionError}</p>}
 
                       <div className="flex gap-3 pt-2">
-                        <Button type="button" variant="outline" className="flex-1 rounded-xl" onClick={() => setShowCreateModal(false)}>Cancel</Button>
+                        <Button type="button" variant="outline" className="flex-1 rounded-xl cursor-pointer" onClick={() => setShowCreateModal(false)}>Cancel</Button>
                         <Button type="submit" className="flex-1 rounded-xl bg-[#0F2942] text-white hover:bg-[#163a5d] cursor-pointer" disabled={submitting}>{submitting ? "Processing..." : "Publish Offer"}</Button>
                       </div>
                     </form>

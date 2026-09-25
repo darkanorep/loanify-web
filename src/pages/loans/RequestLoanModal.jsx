@@ -14,11 +14,11 @@ function formatCurrency(amount) {
         style: "currency",
         currency: "PHP",
         maximumFractionDigits: 0,
-    }).format(amount);
+    }).format(amount || 0);
 }
 
 export default function RequestLoanModal({ onClose, onSuccess, offer }) {
-    const [userLimit, setUserLimit] = useState(500); // Default base limit fallback
+    const [userLimit, setUserLimit] = useState(500);
 
     useEffect(() => {
         async function fetchUserProfile() {
@@ -38,19 +38,31 @@ export default function RequestLoanModal({ onClose, onSuccess, offer }) {
     }, []);
 
     const isP2p = Boolean(offer);
-    const interestRate = isP2p ? Number(offer.interest_rate) : DEFAULT_FLAT_INTEREST_RATE;
 
-    // Max amount is capped by the user's dynamic credit limit or the lender's available offer funds
+    // Check if the lender offer has fixed rates/terms or if they are flexible (borrower proposed)
+    const isFixedInterest = isP2p && offer.interest_rate !== null && offer.interest_rate !== undefined;
+    const isFixedTerm = isP2p && offer.term_months !== null && offer.term_months !== undefined;
+
+    // Max loan amount limit calculation
     const maxAmount = isP2p ? Math.min(Number(offer.amount_available), userLimit) : userLimit;
 
+    // State initialization
     const [amount, setAmount] = useState(Math.min(500, maxAmount));
-    const [term, setTerm] = useState(isP2p ? Number(offer.term_months || 6) : 12);
+    const [term, setTerm] = useState(isFixedTerm ? Number(offer.term_months) : 6);
+    const [proposedInterestRate, setProposedInterestRate] = useState(
+        isFixedInterest ? Number(offer.interest_rate) : DEFAULT_FLAT_INTEREST_RATE
+    );
+
     const [category, setCategory] = useState(CATEGORIES[0]);
     const [description, setDescription] = useState("");
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState("");
 
-    const totalInterest = amount * (interestRate / 100) * (term / 12);
+    // Active interest rate used for calculations
+    const activeInterestRate = isFixedInterest ? Number(offer.interest_rate) : Number(proposedInterestRate || 0);
+
+    // Live automatic repayment calculations
+    const totalInterest = amount * (activeInterestRate / 100) * (term / 12);
     const totalRepayable = amount + totalInterest;
     const monthlyPayment = term > 0 ? totalRepayable / term : 0;
 
@@ -58,8 +70,6 @@ export default function RequestLoanModal({ onClose, onSuccess, offer }) {
         setSubmitting(true);
         setError("");
         try {
-            const purpose = description.trim() ? `${category}: ${description.trim()}` : category;
-
             if (isP2p) {
                 const res = await fetch("/api/p2p/apply", {
                     method: "POST",
@@ -69,17 +79,22 @@ export default function RequestLoanModal({ onClose, onSuccess, offer }) {
                     },
                     body: JSON.stringify({
                         offer_id: offer.id,
-                        amount: Number(amount),
+                        amount: parseFloat(amount),
+                        term_months: parseInt(term, 10),
+                        proposed_interest_rate: activeInterestRate, // Sent to backend
+                        purpose: category,
+                        description: description.trim(),
                     }),
                 });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || "Failed to apply to offer.");
                 onSuccess(data);
             } else {
+                const combinedPurpose = description.trim() ? `${category}: ${description.trim()}` : category;
                 const res = await requestLoan({
                     principal_amount: amount,
                     term_months: term,
-                    purpose,
+                    purpose: combinedPurpose,
                 });
                 onSuccess(res.loan);
             }
@@ -95,8 +110,9 @@ export default function RequestLoanModal({ onClose, onSuccess, offer }) {
     }
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
             <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-card p-6 shadow-xl sm:p-8">
+                {/* Header */}
                 <div className="flex items-start justify-between gap-4">
                     <div>
                         <h2 className="text-2xl font-bold text-foreground">
@@ -104,7 +120,9 @@ export default function RequestLoanModal({ onClose, onSuccess, offer }) {
                         </h2>
                         <p className="mt-1 text-sm text-muted-foreground">
                             {isP2p
-                                ? `Lender: ${offer.lender?.first_name || ''} ${offer.lender?.last_name || ''} (${interestRate}% APR)`
+                                ? `Lender: ${offer.lender?.first_name || ''} ${offer.lender?.last_name || ''} (${
+                                    isFixedInterest ? `${offer.interest_rate}% APR` : "Flexible APR"
+                                })`
                                 : "Flexible funding for small businesses and independent artisans with fixed transparent rates."
                             }
                         </p>
@@ -119,8 +137,8 @@ export default function RequestLoanModal({ onClose, onSuccess, offer }) {
                     </button>
                 </div>
 
-                {/* Loan Amount & Dynamic Limit Slider */}
-                <div className="mt-6 rounded-xl bg-secondary/60 p-5">
+                {/* Loan Amount Slider */}
+                <div className="mt-6 rounded-xl bg-secondary/60 p-5 border border-border">
                     <div className="flex items-center justify-between">
                         <span className="text-sm font-medium text-foreground">Loan Amount</span>
                         <span className="text-2xl font-bold text-accent">{formatCurrency(amount)}</span>
@@ -144,32 +162,70 @@ export default function RequestLoanModal({ onClose, onSuccess, offer }) {
                         </>
                     ) : (
                         <p className="mt-2 text-xs text-muted-foreground">
-                            Your current credit limit is set to the minimum amount ({formatCurrency(maxAmount)}). Complete your first loan repayment successfully to scale up your limit!
+                            Your current credit limit is set to the minimum amount ({formatCurrency(maxAmount)}).
                         </p>
                     )}
                 </div>
 
-                {/* Repayment Term */}
+                {/* Repayment Term (Clickable when Flexible) */}
                 <div className="mt-5">
-                    <p className="mb-2 text-sm font-semibold text-foreground">Repayment Term</p>
+                    <div className="flex justify-between items-center mb-2">
+                        <p className="text-sm font-semibold text-foreground">Repayment Term</p>
+                        {!isFixedTerm && isP2p && (
+                            <span className="text-[10px] uppercase font-extrabold text-accent bg-accent/10 px-2 py-0.5 rounded-full">
+                                Borrower Proposed
+                            </span>
+                        )}
+                    </div>
                     <div className="grid grid-cols-4 gap-2">
                         {TERMS.map((t) => (
                             <button
                                 key={t}
                                 type="button"
-                                disabled={isP2p}
+                                disabled={isFixedTerm}
                                 onClick={() => setTerm(t)}
                                 className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
                                     term === t
                                         ? "border-primary bg-primary text-primary-foreground"
                                         : "border-border bg-background text-foreground hover:bg-secondary"
-                                } ${isP2p ? "opacity-75 cursor-not-allowed" : "cursor-pointer"}`}
+                                } ${isFixedTerm ? "opacity-75 cursor-not-allowed" : "cursor-pointer"}`}
                             >
                                 {t} Months
                             </button>
                         ))}
                     </div>
                 </div>
+
+                {/* Proposed APR Input Field (Enabled if Flexible) */}
+                {!isFixedInterest && isP2p && (
+                    <div className="mt-5 rounded-xl bg-accent/5 p-4 border border-accent/20 space-y-2">
+                        <div className="flex justify-between items-center">
+                            <label htmlFor="proposed-apr" className="text-sm font-semibold text-foreground">
+                                Proposed Fixed Interest Rate (APR %)
+                            </label>
+                            <span className="text-[10px] uppercase font-extrabold text-accent bg-accent/10 px-2 py-0.5 rounded-full">
+                                Flexible Rate
+                            </span>
+                        </div>
+                        <div className="relative flex items-center">
+                            <input
+                                id="proposed-apr"
+                                type="number"
+                                step="0.1"
+                                min="0"
+                                max="100"
+                                value={proposedInterestRate}
+                                onChange={(e) => setProposedInterestRate(e.target.value)}
+                                placeholder="5.0"
+                                className="h-11 w-full rounded-md border border-input bg-background px-3.5 text-sm font-bold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            />
+                            <span className="absolute right-3.5 text-sm font-bold text-muted-foreground">%</span>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">
+                            Propose an APR % to the lender for this loan request.
+                        </p>
+                    </div>
+                )}
 
                 {/* Primary Purpose */}
                 <div className="mt-5">
@@ -192,7 +248,7 @@ export default function RequestLoanModal({ onClose, onSuccess, offer }) {
                     </div>
                 </div>
 
-                {/* Description */}
+                {/* Description / Memo */}
                 <div className="mt-5">
                     <label htmlFor="loan-description" className="mb-2 block text-sm font-semibold text-foreground">
                         Description / Memo (Optional)
@@ -207,8 +263,8 @@ export default function RequestLoanModal({ onClose, onSuccess, offer }) {
                     />
                 </div>
 
-                {/* Estimate */}
-                <div className="mt-5 space-y-2 rounded-xl bg-secondary/60 p-5 text-sm">
+                {/* Automatic Live Estimate Display */}
+                <div className="mt-5 space-y-2 rounded-xl bg-secondary/60 p-5 text-sm border border-border">
                     <div className="flex justify-between">
                         <span className="text-muted-foreground">Estimated Monthly Payment:</span>
                         <span className="font-semibold text-foreground">
@@ -217,7 +273,7 @@ export default function RequestLoanModal({ onClose, onSuccess, offer }) {
                     </div>
                     <div className="flex justify-between">
                         <span className="text-muted-foreground">Fixed Interest Rate (APR):</span>
-                        <span className="font-semibold text-foreground">{interestRate}%</span>
+                        <span className="font-semibold text-foreground">{activeInterestRate}%</span>
                     </div>
                     <div className="flex justify-between">
                         <span className="text-muted-foreground">Total Finance Charge:</span>
@@ -238,14 +294,14 @@ export default function RequestLoanModal({ onClose, onSuccess, offer }) {
                     </div>
                 )}
 
-                {/* Actions */}
+                {/* Action Buttons */}
                 <div className="mt-6 flex gap-3">
                     <Button type="button" variant="outline" className="flex-1 cursor-pointer" onClick={onClose}>
                         Cancel
                     </Button>
                     <Button
                         type="button"
-                        className="flex-1 bg-accent text-accent-foreground hover:bg-accent/90 cursor-pointer"
+                        className="flex-1 bg-accent text-accent-foreground hover:bg-accent/90 cursor-pointer font-bold"
                         disabled={submitting}
                         onClick={handleSubmit}
                     >

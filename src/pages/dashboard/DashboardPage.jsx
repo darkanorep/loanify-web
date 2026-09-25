@@ -8,7 +8,7 @@ import {
   ApiError,
 } from "@/lib/api";
 import RequestLoanModal from "../loans/RequestLoanModal.jsx";
-import MakePaymentModal from "../payments/MakePaymentModal.jsx";
+import MakePaymentModal from "../../components/payments/MakePaymentModal.jsx";
 
 const MONTH_LABELS = {
   "01": "Jan",
