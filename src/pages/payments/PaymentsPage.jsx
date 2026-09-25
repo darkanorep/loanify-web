@@ -10,7 +10,20 @@ import {
     ApiError,
 } from "@/lib/api";
 import AddPaymentMethodModal from "./AddPaymentMethodModal";
-import MakePaymentModal from "./MakePaymentModal";
+import MakePaymentModal from "../../components/payments/MakePaymentModal.jsx";
+import ConfirmDialog from "../../components/common/ConfirmDialog.jsx";
+import gcashIcon from "@/components/icons/gcash-icon.png";
+import mayaIcon from "@/components/icons/maya-icon.png";
+import bdoIcon from "@/components/icons/bdo-icon.png";
+import bpiIcon from "@/components/icons/bpi-icon.png";
+import ubIcon from "@/components/icons/unionbank-icon.png";
+import metrobankIcon from "@/components/icons/metrobank-icon.png";
+import landbankIcon from "@/components/icons/landbank-icon.png";
+import rcbcIcon from "@/components/icons/rcbc-icon.png";
+import securityBankIcon from "@/components/icons/security-bank-icon.png";
+import pnbIcon from "@/components/icons/pnb-icon.png";
+import grabPayIcon from "@/components/icons/grabpay-icon.png";
+import shopeePayIcon from "@/components/icons/shopee-icon.png";
 
 function formatCurrency(amount) {
     return new Intl.NumberFormat("en-US", {
@@ -31,12 +44,32 @@ function formatDateShort(dateString) {
     return new Date(dateString).toISOString().slice(0, 10);
 }
 
-function AccountIcon({ type, className = "h-5 w-5" }) {
-    return type === "CARD" ? (
-        <CreditCard className={className} />
-    ) : (
-        <Landmark className={className} />
-    );
+// Helper function to resolve logo assets or fallback Lucide icons
+function getAccountLogo(institutionName = "", type = "") {
+    const name = (institutionName || "").toUpperCase();
+
+    // Banks
+    if (name.includes("BDO")) return { type: "img", src: bdoIcon, alt: "BDO" };
+    if (name.includes("BPI") || name.includes("PHILIPPINE ISLANDS")) return { type: "img", src: bpiIcon, alt: "BPI" };
+    if (name.includes("UNIONBANK") || name.includes("UBP")) return { type: "img", src: ubIcon, alt: "UnionBank" };
+    if (name.includes("METROBANK")) return { type: "img", src: metrobankIcon, alt: "Metrobank" };
+    if (name.includes("LANDBANK") || name.includes("LBP")) return { type: "img", src: landbankIcon, alt: "Landbank" };
+    if (name.includes("RCBC")) return { type: "img", src: rcbcIcon, alt: "RCBC" };
+    if (name.includes("SECURITY")) return { type: "img", src: securityBankIcon, alt: "Security Bank" };
+    if (name.includes("PNB") || name.includes("PHILIPPINE NATIONAL")) return { type: "img", src: pnbIcon, alt: "PNB" };
+
+    // E-Wallets
+    if (name.includes("GCASH")) return { type: "img", src: gcashIcon, alt: "GCash" };
+    if (name.includes("MAYA")) return { type: "img", src: mayaIcon, alt: "Maya" };
+    if (name.includes("GRAB")) return { type: "img", src: grabPayIcon, alt: "GrabPay" };
+    if (name.includes("SHOPEE")) return { type: "img", src: shopeePayIcon, alt: "ShopeePay" };
+
+    // Fallbacks
+    if (type === "CARD" || type === "CREDIT_CARD") {
+        return { type: "icon", Icon: CreditCard };
+    }
+
+    return { type: "icon", Icon: Landmark };
 }
 
 export default function PaymentsPage() {
@@ -46,6 +79,17 @@ export default function PaymentsPage() {
     const [showAddModal, setShowAddModal] = useState(false);
     const [showPayModal, setShowPayModal] = useState(false);
     const [autopayUpdating, setAutopayUpdating] = useState(false);
+
+    // Confirmation Dialog State
+    const [confirmState, setConfirmState] = useState({
+        isOpen: false,
+        title: "",
+        message: "",
+        confirmText: "Confirm",
+        variant: "primary",
+        isLoading: false,
+        onConfirm: () => {},
+    });
 
     // Pagination & Rows-per-page states
     const [historyPage, setHistoryPage] = useState(1);
@@ -67,6 +111,10 @@ export default function PaymentsPage() {
     useEffect(() => {
         load();
     }, []);
+
+    const closeConfirmDialog = () => {
+        setConfirmState((prev) => ({ ...prev, isOpen: false, isLoading: false }));
+    };
 
     async function handleToggleAutopay() {
         if (!data) return;
@@ -92,13 +140,27 @@ export default function PaymentsPage() {
         }
     }
 
+    function triggerDelete(id) {
+        setConfirmState({
+            isOpen: true,
+            title: "Remove Payment Account",
+            message: "Are you sure you want to remove this payment account? This action cannot be undone.",
+            confirmText: "Remove Account",
+            variant: "danger",
+            isLoading: false,
+            onConfirm: () => handleDelete(id),
+        });
+    }
+
     async function handleDelete(id) {
-        if (!confirm("Remove this payment account?")) return;
+        setConfirmState((prev) => ({ ...prev, isLoading: true }));
         try {
             await deletePaymentMethod(id);
             load();
         } catch (err) {
             alert(err instanceof ApiError ? err.message : "Couldn't remove this account.");
+        } finally {
+            closeConfirmDialog();
         }
     }
 
@@ -144,6 +206,18 @@ export default function PaymentsPage() {
 
     return (
         <div className="space-y-8">
+            {/* Custom Styled Confirm Dialog */}
+            <ConfirmDialog
+                isOpen={confirmState.isOpen}
+                title={confirmState.title}
+                message={confirmState.message}
+                confirmText={confirmState.confirmText}
+                variant={confirmState.variant}
+                isLoading={confirmState.isLoading}
+                onConfirm={confirmState.onConfirm}
+                onCancel={closeConfirmDialog}
+            />
+
             <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-foreground">Payments & Transfers</h1>
@@ -153,7 +227,7 @@ export default function PaymentsPage() {
                 </div>
                 <Button
                     type="button"
-                    className="bg-accent text-accent-foreground hover:bg-accent/90"
+                    className="bg-accent text-accent-foreground hover:bg-accent/90 cursor-pointer"
                     onClick={() => setShowPayModal(true)}
                 >
                     Make a Payment
@@ -193,7 +267,7 @@ export default function PaymentsPage() {
                                 <button
                                     type="button"
                                     onClick={() => setShowPayModal(true)}
-                                    className="font-semibold text-accent hover:underline"
+                                    className="font-semibold text-accent hover:underline cursor-pointer"
                                 >
                                     Pay Early →
                                 </button>
@@ -216,7 +290,7 @@ export default function PaymentsPage() {
                             aria-checked={data.autopay_enabled}
                             onClick={handleToggleAutopay}
                             disabled={autopayUpdating}
-                            className={`relative h-6 w-11 shrink-0 rounded-full ring-1 ring-inset transition-colors ${
+                            className={`relative h-6 w-11 shrink-0 rounded-full ring-1 ring-inset transition-colors cursor-pointer ${
                                 data.autopay_enabled
                                     ? "bg-accent ring-accent"
                                     : "bg-secondary ring-border"
@@ -243,7 +317,7 @@ export default function PaymentsPage() {
                     <button
                         type="button"
                         onClick={() => setShowAddModal(true)}
-                        className="flex items-center gap-1 text-sm font-semibold text-accent hover:underline"
+                        className="flex items-center gap-1 text-sm font-semibold text-accent hover:underline cursor-pointer"
                     >
                         <Plus className="h-4 w-4" />
                         Link New Bank Account
@@ -254,41 +328,54 @@ export default function PaymentsPage() {
                     <p className="text-sm text-muted-foreground">No payment accounts linked yet.</p>
                 ) : (
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                        {data.payment_methods.map((pm) => (
-                            <div key={pm.id} className="rounded-2xl border border-border bg-card p-5">
-                                <div className="flex items-start justify-between">
-                                    <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-secondary text-foreground">
-                                        <AccountIcon type={pm.type} />
-                                    </span>
-                                    <div className="flex items-center gap-2">
-                                        {pm.is_default && (
-                                            <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-foreground">
-                                                Primary Default
+                        {data.payment_methods.map((pm) => {
+                            const logoInfo = getAccountLogo(pm.institution_name, pm.type);
+                            return (
+                                <div key={pm.id} className="rounded-2xl border border-border bg-card p-5 flex flex-col justify-between">
+                                    <div>
+                                        <div className="flex items-start justify-between">
+                                            <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-secondary text-foreground p-2">
+                                                {logoInfo.type === "img" ? (
+                                                    <img
+                                                        src={logoInfo.src}
+                                                        alt={logoInfo.alt}
+                                                        className="h-full w-full object-contain rounded-sm"
+                                                    />
+                                                ) : (
+                                                    <logoInfo.Icon className="h-5 w-5" />
+                                                )}
                                             </span>
-                                        )}
+                                            <div className="flex items-center gap-2">
+                                                {pm.is_default && (
+                                                    <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-foreground">
+                                                        Primary Default
+                                                    </span>
+                                                )}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => triggerDelete(pm.id)}
+                                                    aria-label="Remove account"
+                                                    className="text-muted-foreground hover:text-destructive cursor-pointer"
+                                                >
+                                                    <X className="h-4 w-4" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <p className="mt-4 font-semibold text-foreground">{pm.institution_name}</p>
+                                        <p className="mt-1 text-sm text-muted-foreground">•••• •••• •••• {pm.last_four}</p>
+                                    </div>
+                                    {!pm.is_default && (
                                         <button
                                             type="button"
-                                            onClick={() => handleDelete(pm.id)}
-                                            aria-label="Remove account"
-                                            className="text-muted-foreground hover:text-destructive"
+                                            onClick={() => handleSetDefault(pm.id)}
+                                            className="mt-3 text-xs font-semibold text-accent hover:underline cursor-pointer text-left"
                                         >
-                                            <X className="h-4 w-4" />
+                                            Set as default
                                         </button>
-                                    </div>
+                                    )}
                                 </div>
-                                <p className="mt-4 font-semibold text-foreground">{pm.institution_name}</p>
-                                <p className="mt-1 text-sm text-muted-foreground">•••• •••• •••• {pm.last_four}</p>
-                                {!pm.is_default && (
-                                    <button
-                                        type="button"
-                                        onClick={() => handleSetDefault(pm.id)}
-                                        className="mt-3 text-xs font-semibold text-accent hover:underline"
-                                    >
-                                        Set as default
-                                    </button>
-                                )}
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 )}
             </section>
@@ -306,7 +393,7 @@ export default function PaymentsPage() {
                                     setHistoryPageSize(Number(e.target.value));
                                     setHistoryPage(1);
                                 }}
-                                className="rounded-md border border-border bg-card px-2 py-1 text-xs text-foreground outline-none"
+                                className="rounded-md border border-border bg-card px-2 py-1 text-xs text-foreground outline-none cursor-pointer"
                             >
                                 <option value={5}>5</option>
                                 <option value={10}>10</option>
@@ -316,7 +403,7 @@ export default function PaymentsPage() {
                         <button
                             type="button"
                             onClick={handleExportCsv}
-                            className="flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary"
+                            className="flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary cursor-pointer"
                         >
                             <Download className="h-3.5 w-3.5" />
                             Export CSV
@@ -382,7 +469,7 @@ export default function PaymentsPage() {
                                         type="button"
                                         disabled={historyPage === 1}
                                         onClick={() => setHistoryPage((p) => p - 1)}
-                                        className="rounded-full border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-40"
+                                        className="rounded-full border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
                                     >
                                         Previous
                                     </button>
@@ -390,7 +477,7 @@ export default function PaymentsPage() {
                                         type="button"
                                         disabled={historyPage >= totalHistoryPages}
                                         onClick={() => setHistoryPage((p) => p + 1)}
-                                        className="rounded-full border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-40"
+                                        className="rounded-full border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
                                     >
                                         Next
                                     </button>

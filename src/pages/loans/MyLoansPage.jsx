@@ -79,9 +79,9 @@ export default function MyLoansPage() {
                             <div key={loan.id} className="flex flex-col justify-between rounded-2xl border border-border bg-card p-5">
                                 <div>
                                     <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
-                      LN-{String(loan.id).padStart(6, "0")}
-                    </span>
+                                        <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                                            LN-{String(loan.id).padStart(6, "0")}
+                                        </span>
                                         <span
                                             className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
                                                 isCompleted
@@ -89,8 +89,8 @@ export default function MyLoansPage() {
                                                     : "bg-amber-100 text-amber-800"
                                             }`}
                                         >
-                      {isCompleted ? "Paid Off" : loan.status}
-                    </span>
+                                            {isCompleted ? "Paid Off" : loan.status}
+                                        </span>
                                     </div>
 
                                     <p className="mt-3 text-2xl font-bold text-foreground">
@@ -106,8 +106,8 @@ export default function MyLoansPage() {
                                         <div className="rounded-md bg-secondary/50 p-2">
                                             <span className="text-muted-foreground block">Next Installment</span>
                                             <span className="font-semibold text-foreground">
-                        {pendingInst ? formatCurrency(Number(pendingInst.amount_due) - Number(pendingInst.amount_paid)) : "₱0"}
-                      </span>
+                                                {pendingInst ? formatCurrency(Number(pendingInst.amount_due) - Number(pendingInst.amount_paid)) : "₱0"}
+                                            </span>
                                         </div>
                                     </div>
                                 </div>
@@ -125,7 +125,7 @@ export default function MyLoansPage() {
                                     {!isCompleted && (
                                         <Button
                                             size="sm"
-                                            className="flex-1 bg-accent text-accent-foreground hover:bg-accent/90 cursor-pointer"
+                                            className="flex-1 bg-accent text-accent-foreground hover:bg-accent/90 cursor-pointer font-bold"
                                             onClick={() => setSelectedPaymentLoan(loan)}
                                         >
                                             <DollarSign className="h-4 w-4 mr-1.5" /> Make Payment
@@ -146,13 +146,12 @@ export default function MyLoansPage() {
                 />
             )}
 
-            {/* 2. Repayment Processing Modal */}
+            {/* 2. Styled Repayment Processing Modal */}
             {selectedPaymentLoan && (
                 <MakePaymentModal
-                    loans={loans}
+                    loans={loans.filter((l) => l.status !== "COMPLETED")}
                     paymentMethods={paymentMethods}
                     preselectedLoanId={selectedPaymentLoan.id}
-                    walletBalance={walletBalance}
                     onClose={() => setSelectedPaymentLoan(null)}
                     onSuccess={() => {
                         setSelectedPaymentLoan(null);
